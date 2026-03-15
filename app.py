@@ -33,7 +33,8 @@ CORS(app)
 
 # 配置
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
-app.config['UPLOAD_FOLDER'] = 'uploads'
+# Vercel环境下使用/tmp目录作为上传目录
+app.config['UPLOAD_FOLDER'] = '/tmp/uploads' if os.environ.get('VERCEL') else 'uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'mp3'}
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
 

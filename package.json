@@ -1,0 +1,12 @@
+{
+  "name": "call-analyzer",
+  "version": "1.0.0",
+  "description": "购房意向智能分析系统",
+  "scripts": {
+    "build": "echo 'Static files are already built'",
+    "vercel-build": "python -m pip install -r requirements.txt"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

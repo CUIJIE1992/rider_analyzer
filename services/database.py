@@ -15,7 +15,11 @@ from contextlib import contextmanager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'analysis.db')
+# Vercel环境下使用/tmp目录存储数据库
+if os.environ.get('VERCEL'):
+    DB_PATH = '/tmp/analysis.db'
+else:
+    DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'analysis.db')
 
 
 def get_db_path():
