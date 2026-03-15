@@ -14,35 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # 导入Flask应用
 from app import app
 
-# Vercel Serverless Handler
-from http.server import BaseHTTPRequestHandler
-from io import BytesIO
-
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        
-        with app.test_client() as client:
-            response = client.get(self.path)
-            self.wfile.write(response.data)
-    
-    def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length)
-        
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-        
-        with app.test_client() as client:
-            response = client.post(
-                self.path,
-                data=body,
-                content_type=self.headers.get('Content-Type', 'application/json')
-            )
-            self.wfile.write(response.data)
-
-# 导出Flask应用供Vercel使用
-application = app
+# Vercel使用Flask应用实例作为入口
+# 确保应用可以在Vercel环境中运行
+if __name__ == "__main__":
+    app.run(debug=True)
