@@ -1,0 +1,785 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+通话录音分析应用主程序
+"""
+
+import os
+import uuid
+import json
+import threading
+import zipfile
+import logging
+from io import BytesIO
+from datetime import datetime, timedelta
+from flask import Flask, render_template, request, jsonify, url_for, send_file
+from werkzeug.utils import secure_filename
+from flask_cors import CORS
+from dotenv import load_dotenv
+from services import database
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+batch_processes = {}
+batch_lock = threading.Lock()
+
+# 加载环境变量
+load_dotenv()
+
+# 创建Flask应用
+app = Flask(__name__)
+CORS(app)
+
+# 配置
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['ALLOWED_EXTENSIONS'] = {'mp3'}
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
+
+# 确保上传目录存在
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+
+def allowed_file(filename):
+    """检查文件是否为允许的格式"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+
+@app.route('/')
+def index():
+    """主页"""
+    return render_template('index.html')
+
+
+@app.route('/history')
+def history():
+    """历史记录页面"""
+    return render_template('history.html')
+
+
+@app.route('/dashboard')
+def dashboard():
+    """统计仪表盘页面"""
+    return render_template('dashboard.html')
+
+
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """处理文件上传，支持单文件和多文件上传"""
+    if 'files' in request.files:
+        files = request.files.getlist('files')
+    elif 'file' in request.files:
+        files = [request.files['file']]
+    else:
+        return jsonify({'error': '没有选择文件'}), 400
+    
+    if not files or all(f.filename == '' for f in files):
+        return jsonify({'error': '没有选择文件'}), 400
+    
+    uploaded_files = []
+    batch_id = str(uuid.uuid4())
+    
+    for file in files:
+        if file and file.filename != '' and allowed_file(file.filename):
+            file_id = str(uuid.uuid4())
+            original_filename = secure_filename(file.filename)
+            stored_filename = f"{file_id}_{original_filename}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)
+            file.save(filepath)
+            
+            uploaded_files.append({
+                'file_id': file_id,
+                'original_filename': original_filename,
+                'stored_filename': stored_filename,
+                'filepath': filepath
+            })
+    
+    if not uploaded_files:
+        return jsonify({'error': '没有有效的文件被上传，请上传MP3文件'}), 400
+    
+    if len(uploaded_files) == 1:
+        return jsonify({
+            'success': True,
+            'message': '文件上传成功',
+            'filename': uploaded_files[0]['stored_filename'],
+            'filepath': uploaded_files[0]['filepath'],
+            'file_id': uploaded_files[0]['file_id']
+        })
+    
+    return jsonify({
+        'success': True,
+        'message': f'成功上传 {len(uploaded_files)} 个文件',
+        'batch_id': batch_id,
+        'files': uploaded_files,
+        'total': len(uploaded_files)
+    })
+
+
+@app.route('/api/process', methods=['POST'])
+def process_audio():
+    """处理音频文件"""
+    from services.audio_processor import AudioProcessor
+    from services.speech_to_text import SpeechToText
+    from services.ai_analyzer import AIAnalyzer
+    
+    data = request.json
+    filename = data.get('filename')
+    
+    if not filename:
+        return jsonify({'error': '缺少文件名'}), 400
+    
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    if not os.path.exists(filepath):
+        return jsonify({'error': '文件不存在'}), 404
+    
+    try:
+        # 步骤1: 音频处理和语音分离
+        processor = AudioProcessor(filepath)
+        separated_audio = processor.separate_speakers()
+        
+        # 步骤2: 语音转文本
+        transcriber = SpeechToText()
+        speaker1_text = transcriber.transcribe(separated_audio['speaker1'])
+        speaker2_text = transcriber.transcribe(separated_audio['speaker2'])
+        
+        # 步骤3: AI分析
+        analyzer = AIAnalyzer()
+        analysis_result = analyzer.analyze_conversation(speaker1_text, speaker2_text)
+        
+        return jsonify({
+            'success': True,
+            'speaker1': speaker1_text,
+            'speaker2': speaker2_text,
+            'analysis': analysis_result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'处理失败: {str(e)}'}), 500
+
+
+def process_single_file(file_info, batch_id, file_index):
+    """处理单个文件的函数，用于后台线程"""
+    from services.audio_processor import AudioProcessor
+    from services.speech_to_text import SpeechToText
+    from services.ai_analyzer import AIAnalyzer
+    
+    filepath = file_info['filepath']
+    file_id = file_info['file_id']
+    original_filename = file_info['original_filename']
+    
+    result = {
+        'file_id': file_id,
+        'original_filename': original_filename,
+        'status': 'processing',
+        'error': None,
+        'speaker1': None,
+        'speaker2': None,
+        'analysis': None
+    }
+    
+    try:
+        processor = AudioProcessor(filepath)
+        separated_audio = processor.separate_speakers()
+        
+        transcriber = SpeechToText()
+        speaker1_text = transcriber.transcribe(separated_audio['speaker1'])
+        speaker2_text = transcriber.transcribe(separated_audio['speaker2'])
+        
+        analyzer = AIAnalyzer()
+        analysis_result = analyzer.analyze_conversation(speaker1_text, speaker2_text)
+        
+        result['speaker1'] = speaker1_text
+        result['speaker2'] = speaker2_text
+        result['analysis'] = analysis_result
+        result['status'] = 'completed'
+        
+    except Exception as e:
+        result['status'] = 'failed'
+        result['error'] = str(e)
+    
+    with batch_lock:
+        if batch_id in batch_processes:
+            batch_processes[batch_id]['results'][file_index] = result
+            batch_processes[batch_id]['completed'] += 1
+            if batch_processes[batch_id]['completed'] >= batch_processes[batch_id]['total']:
+                batch_processes[batch_id]['status'] = 'completed'
+    
+    return result
+
+
+@app.route('/api/batch-process', methods=['POST'])
+def batch_process():
+    """批量处理文件接口"""
+    data = request.json
+    batch_id = data.get('batch_id')
+    file_ids = data.get('file_ids', [])
+    files_info = data.get('files', [])
+    
+    if not files_info:
+        return jsonify({'error': '缺少文件信息'}), 400
+    
+    if not batch_id:
+        batch_id = str(uuid.uuid4())
+    
+    with batch_lock:
+        batch_processes[batch_id] = {
+            'status': 'processing',
+            'total': len(files_info),
+            'completed': 0,
+            'results': [None] * len(files_info),
+            'files_info': files_info,
+            'created_at': datetime.now().isoformat()
+        }
+    
+    for index, file_info in enumerate(files_info):
+        thread = threading.Thread(
+            target=process_single_file,
+            args=(file_info, batch_id, index)
+        )
+        thread.daemon = True
+        thread.start()
+    
+    return jsonify({
+        'success': True,
+        'batch_id': batch_id,
+        'status': 'processing',
+        'total': len(files_info)
+    })
+
+
+@app.route('/api/batch-status/<batch_id>', methods=['GET'])
+def get_batch_status(batch_id):
+    """获取批量处理状态"""
+    with batch_lock:
+        if batch_id not in batch_processes:
+            return jsonify({'error': '批量任务不存在'}), 404
+        
+        batch_info = batch_processes[batch_id].copy()
+    
+    return jsonify({
+        'batch_id': batch_id,
+        'status': batch_info['status'],
+        'total': batch_info['total'],
+        'completed': batch_info['completed'],
+        'progress': round(batch_info['completed'] / batch_info['total'] * 100, 1) if batch_info['total'] > 0 else 0,
+        'results': batch_info['results']
+    })
+
+
+@app.route('/api/batch-export/<batch_id>', methods=['GET'])
+def batch_export(batch_id):
+    """批量导出分析结果为ZIP文件"""
+    from services.pdf_generator import generate_pdf_report
+    
+    with batch_lock:
+        if batch_id not in batch_processes:
+            return jsonify({'error': '批量任务不存在'}), 404
+        
+        batch_info = batch_processes[batch_id].copy()
+    
+    if batch_info['status'] != 'completed':
+        return jsonify({'error': '批量任务尚未完成'}), 400
+    
+    zip_buffer = BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for index, result in enumerate(batch_info['results']):
+            if result and result['status'] == 'completed':
+                try:
+                    pdf_content = generate_pdf_report(
+                        result['analysis'],
+                        result['speaker1'],
+                        result['speaker2']
+                    )
+                    
+                    safe_filename = ''.join(c if c.isalnum() or c in ('_', '-') else '_' for c in result['original_filename'])
+                    pdf_filename = f"{safe_filename}_报告.pdf"
+                    
+                    zipf.writestr(pdf_filename, pdf_content)
+                except Exception as e:
+                    error_filename = f"error_{index}.txt"
+                    zipf.writestr(error_filename, f"生成PDF失败: {str(e)}")
+        
+        summary_content = f"批量处理报告\n"
+        summary_content += f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        summary_content += f"总文件数: {batch_info['total']}\n"
+        summary_content += f"成功处理: {sum(1 for r in batch_info['results'] if r and r['status'] == 'completed')}\n"
+        summary_content += f"处理失败: {sum(1 for r in batch_info['results'] if r and r['status'] == 'failed')}\n"
+        
+        zipf.writestr("处理摘要.txt", summary_content)
+    
+    zip_buffer.seek(0)
+    
+    return send_file(
+        zip_buffer,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'批量分析报告_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip'
+    )
+
+
+@app.route('/api/analyze', methods=['POST'])
+def analyze_text():
+    """分析文本内容"""
+    from services.ai_analyzer import AIAnalyzer
+    
+    data = request.json
+    speaker1_text = data.get('speaker1', '')
+    speaker2_text = data.get('speaker2', '')
+    
+    if not speaker1_text and not speaker2_text:
+        return jsonify({'error': '缺少文本内容'}), 400
+    
+    try:
+        analyzer = AIAnalyzer()
+        result = analyzer.analyze_conversation(speaker1_text, speaker2_text)
+        
+        return jsonify({
+            'success': True,
+            'analysis': result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'分析失败: {str(e)}'}), 500
+
+
+@app.route('/api/analyze-transcript', methods=['POST'])
+def analyze_transcript():
+    """直接分析转录文本（跳过语音转文本步骤）"""
+    from services.ai_analyzer import AIAnalyzer
+    
+    data = request.json
+    transcript = data.get('transcript', '')
+    
+    if not transcript:
+        return jsonify({'error': '缺少转录文本'}), 400
+    
+    try:
+        # 解析转录文本，分离两个说话人
+        speaker1_text, speaker2_text = parse_transcript(transcript)
+        
+        # AI分析
+        analyzer = AIAnalyzer()
+        result = analyzer.analyze_conversation(speaker1_text, speaker2_text)
+        
+        # 保存分析记录到数据库
+        try:
+            from services.ai_analyzer import AIAnalyzer
+            
+            # 生成客户标签
+            analyzer = AIAnalyzer()
+            tags = analyzer.generate_customer_tags(result)
+            tags_str = ','.join(tags) if tags else ''
+            
+            # 提取关键信息
+            summary = result.get('总结', {}).get('summary', '') if isinstance(result.get('总结'), dict) else ''
+            customer_grade = result.get('客户评级', {}).get('grade', '') if isinstance(result.get('客户评级'), dict) else ''
+            intention_level = result.get('购房意向', {}).get('intention', '') if isinstance(result.get('购房意向'), dict) else ''
+            purchase_stage = result.get('购房阶段', {}).get('stage', '') if isinstance(result.get('购房阶段'), dict) else ''
+            
+            record = {
+                'filename': '文本分析',
+                'customer_grade': customer_grade,
+                'intention_level': intention_level,
+                'purchase_stage': purchase_stage,
+                'summary': summary,
+                'analysis_data': json.dumps(result, ensure_ascii=False),
+                'tags': tags_str,
+                'speaker1_data': speaker1_text,
+                'speaker2_data': speaker2_text
+            }
+            
+            database.save_record(record)
+        except Exception as e:
+            logger.warning(f'保存分析记录失败: {str(e)}')
+        
+        return jsonify({
+            'success': True,
+            'speaker1': speaker1_text,
+            'speaker2': speaker2_text,
+            'analysis': result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'分析失败: {str(e)}'}), 500
+
+
+def parse_transcript(transcript):
+    """解析转录文本，分离两个说话人"""
+    import re
+    
+    speaker1_texts = []
+    speaker2_texts = []
+    
+    lines = transcript.strip().split('\n')
+    
+    current_speaker = None
+    current_text = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            if current_speaker and current_text:
+                text = ' '.join(current_text)
+                if current_speaker == 1:
+                    speaker1_texts.append({
+                        'text': text,
+                        'timestamp': '00:00'
+                    })
+                else:
+                    speaker2_texts.append({
+                        'text': text,
+                        'timestamp': '00:00'
+                    })
+                current_text = []
+            continue
+        
+        match = re.match(r'说话人\s*(\d+)\s+\d+:\d+', line)
+        if match:
+            if current_speaker and current_text:
+                text = ' '.join(current_text)
+                if current_speaker == 1:
+                    speaker1_texts.append({
+                        'text': text,
+                        'timestamp': '00:00'
+                    })
+                else:
+                    speaker2_texts.append({
+                        'text': text,
+                        'timestamp': '00:00'
+                    })
+            
+            current_speaker = int(match.group(1))
+            current_text = []
+        else:
+            if current_speaker:
+                current_text.append(line)
+    
+    if current_speaker and current_text:
+        text = ' '.join(current_text)
+        if current_speaker == 1:
+            speaker1_texts.append({
+                'text': text,
+                'timestamp': '00:00'
+            })
+        else:
+            speaker2_texts.append({
+                'text': text,
+                'timestamp': '00:00'
+            })
+    
+    return speaker1_texts, speaker2_texts
+
+
+@app.route('/api/export-pdf', methods=['POST'])
+def export_pdf():
+    """导出PDF报告"""
+    from services.pdf_generator import generate_pdf_report
+    from io import BytesIO
+    
+    data = request.json
+    analysis = data.get('analysis', {})
+    speaker1 = data.get('speaker1', [])
+    speaker2 = data.get('speaker2', [])
+    
+    if not analysis:
+        return jsonify({'error': '缺少分析结果'}), 400
+    
+    try:
+        pdf_content = generate_pdf_report(analysis, speaker1, speaker2)
+        
+        pdf_buffer = BytesIO(pdf_content)
+        pdf_buffer.seek(0)
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'购房电话分析报告_{datetime.now().strftime("%Y-%m-%d")}.pdf'
+        )
+        
+    except Exception as e:
+        return jsonify({'error': f'PDF生成失败: {str(e)}'}), 500
+
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    """获取历史记录列表"""
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        offset = request.args.get('offset', 0, type=int)
+        
+        records = database.get_records(limit=limit, offset=offset)
+        total = database.get_records_count()
+        
+        return jsonify({
+            'records': records,
+            'total': total,
+            'limit': limit,
+            'offset': offset
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'获取历史记录失败: {str(e)}'}), 500
+
+
+@app.route('/api/history/<int:id>', methods=['GET'])
+def get_history_detail(id):
+    """获取单条记录详情"""
+    try:
+        record = database.get_record_by_id(id)
+        
+        if not record:
+            return jsonify({'error': '记录不存在'}), 404
+        
+        return jsonify(record)
+        
+    except Exception as e:
+        return jsonify({'error': f'获取记录详情失败: {str(e)}'}), 500
+
+
+@app.route('/api/history/<int:id>', methods=['DELETE'])
+def delete_history(id):
+    """删除记录"""
+    try:
+        success = database.delete_record(id)
+        
+        if not success:
+            return jsonify({'error': '记录不存在'}), 404
+        
+        return jsonify({
+            'success': True,
+            'message': '记录删除成功'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'删除记录失败: {str(e)}'}), 500
+
+
+@app.route('/api/history/search', methods=['POST'])
+def search_history():
+    """搜索筛选记录"""
+    try:
+        data = request.json or {}
+        
+        keyword = data.get('keyword', '')
+        
+        filters = {}
+        if data.get('grade'):
+            filters['customer_grade'] = data['grade']
+        if data.get('intention'):
+            filters['intention_level'] = data['intention']
+        if data.get('start_date'):
+            filters['start_date'] = data['start_date']
+        if data.get('end_date'):
+            filters['end_date'] = data['end_date']
+        
+        records = database.search_records(keyword=keyword, filters=filters)
+        
+        return jsonify({
+            'records': records,
+            'total': len(records)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'搜索失败: {str(e)}'}), 500
+
+
+@app.route('/api/history/compare', methods=['GET'])
+def compare_history():
+    """对比多条记录"""
+    try:
+        ids_param = request.args.get('ids', '')
+        
+        if not ids_param:
+            return jsonify({'error': '缺少记录ID'}), 400
+        
+        try:
+            ids = [int(id.strip()) for id in ids_param.split(',') if id.strip()]
+        except ValueError:
+            return jsonify({'error': '无效的ID格式'}), 400
+        
+        if len(ids) < 2:
+            return jsonify({'error': '至少需要选择2条记录进行对比'}), 400
+        
+        records = []
+        for record_id in ids:
+            record = database.get_record_by_id(record_id)
+            if record:
+                records.append(record)
+        
+        if len(records) < 2:
+            return jsonify({'error': '找到的有效记录不足2条'}), 404
+        
+        comparison = {
+            'grade_distribution': {},
+            'intention_distribution': {},
+            'stage_distribution': {},
+            'common_tags': [],
+            'all_tags': set()
+        }
+        
+        all_tags_sets = []
+        
+        for record in records:
+            grade = record.get('customer_grade', '未知')
+            comparison['grade_distribution'][grade] = comparison['grade_distribution'].get(grade, 0) + 1
+            
+            intention = record.get('intention_level', '未知')
+            comparison['intention_distribution'][intention] = comparison['intention_distribution'].get(intention, 0) + 1
+            
+            stage = record.get('purchase_stage', '未知')
+            comparison['stage_distribution'][stage] = comparison['stage_distribution'].get(stage, 0) + 1
+            
+            tags = record.get('tags', [])
+            all_tags_sets.append(set(tags))
+            comparison['all_tags'].update(tags)
+        
+        if all_tags_sets:
+            comparison['common_tags'] = list(set.intersection(*all_tags_sets))
+        
+        comparison['all_tags'] = list(comparison['all_tags'])
+        
+        return jsonify({
+            'records': records,
+            'comparison': comparison
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'对比失败: {str(e)}'}), 500
+
+
+@app.route('/api/dashboard/stats')
+def get_dashboard_stats():
+    """获取统计卡片数据"""
+    try:
+        stats = database.get_statistics()
+        
+        with database.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute(
+                'SELECT COUNT(*) FROM analysis_records WHERE created_at >= ?',
+                (week_ago,)
+            )
+            this_week_new = cursor.fetchone()[0]
+            
+            cursor.execute('''
+                SELECT intention_level, COUNT(*) as count 
+                FROM analysis_records 
+                WHERE intention_level IS NOT NULL AND intention_level != ''
+                GROUP BY intention_level
+            ''')
+            intention_data = {row['intention_level']: row['count'] for row in cursor.fetchall()}
+            
+            total_intention = sum(intention_data.values())
+            avg_intention = 0
+            if total_intention > 0:
+                high_score = intention_data.get('高', 0) * 3
+                medium_score = intention_data.get('中', 0) * 2
+                low_score = intention_data.get('低', 0) * 1
+                avg_intention = round((high_score + medium_score + low_score) / total_intention, 2)
+        
+        grade_dist = stats.get('grade_distribution', {})
+        
+        return jsonify({
+            'total_records': stats.get('total_records', 0),
+            'this_week_new': this_week_new,
+            'avg_intention': avg_intention,
+            'top_grade_count': {
+                'A': grade_dist.get('A', 0),
+                'B': grade_dist.get('B', 0),
+                'C': grade_dist.get('C', 0)
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'获取统计数据失败: {str(e)}'}), 500
+
+
+@app.route('/api/dashboard/grade-distribution')
+def get_grade_distribution():
+    """客户等级分布"""
+    try:
+        stats = database.get_statistics()
+        grade_dist = stats.get('grade_distribution', {})
+        
+        return jsonify({
+            'labels': ['A类', 'B类', 'C类'],
+            'data': [
+                grade_dist.get('A', 0),
+                grade_dist.get('B', 0),
+                grade_dist.get('C', 0)
+            ]
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'获取等级分布失败: {str(e)}'}), 500
+
+
+@app.route('/api/dashboard/intention-trend')
+def get_intention_trend():
+    """意向趋势数据"""
+    try:
+        days = request.args.get('days', default=30, type=int)
+        
+        with database.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            labels = []
+            high_data = []
+            medium_data = []
+            low_data = []
+            
+            for i in range(days - 1, -1, -1):
+                date = datetime.now() - timedelta(days=i)
+                date_str = date.strftime('%Y-%m-%d')
+                labels.append(date.strftime('%m-%d'))
+                
+                cursor.execute('''
+                    SELECT intention_level, COUNT(*) as count 
+                    FROM analysis_records 
+                    WHERE DATE(created_at) = ?
+                    GROUP BY intention_level
+                ''', (date_str,))
+                
+                day_data = {row['intention_level']: row['count'] for row in cursor.fetchall()}
+                high_data.append(day_data.get('高', 0))
+                medium_data.append(day_data.get('中', 0))
+                low_data.append(day_data.get('低', 0))
+            
+            return jsonify({
+                'labels': labels,
+                'high': high_data,
+                'medium': medium_data,
+                'low': low_data
+            })
+            
+    except Exception as e:
+        return jsonify({'error': f'获取意向趋势失败: {str(e)}'}), 500
+
+
+@app.route('/api/dashboard/concerns-ranking')
+def get_concerns_ranking():
+    """关注点排行"""
+    try:
+        tags = database.get_all_tags()
+        
+        labels = [tag['tag_name'] for tag in tags[:10]]
+        data = [tag['count'] for tag in tags[:10]]
+        
+        return jsonify({
+            'labels': labels,
+            'data': data
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'获取关注点排行失败: {str(e)}'}), 500
+
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
