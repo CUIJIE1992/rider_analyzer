@@ -1,9 +1,5 @@
 {
   "version": 2,
-  "buildCommand": null,
-  "installCommand": null,
-  "framework": null,
-  "outputDirectory": null,
   "rewrites": [
     {
       "source": "/static/(.*)",
@@ -16,11 +12,7 @@
   ],
   "functions": {
     "api/index.py": {
-      "maxDuration": 60,
-      "memory": 3008
+      "maxDuration": 60
     }
-  },
-  "env": {
-    "PYTHONPATH": "."
   }
 }

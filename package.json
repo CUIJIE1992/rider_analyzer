@@ -1,12 +1,5 @@
 {
   "name": "call-analyzer",
   "version": "1.0.0",
-  "description": "购房意向智能分析系统",
-  "scripts": {
-    "build": "echo 'Build completed'",
-    "vercel-build": "echo 'Vercel build completed'"
-  },
-  "engines": {
-    "node": "24.x"
-  }
+  "description": "购房意向智能分析系统"
 }
