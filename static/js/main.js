@@ -762,16 +762,28 @@ function displayRating(rating) {
         `;
     }
     
+    // 构建评级维度数据
+    const ratingDimensions = [
+        { icon: '🎯', label: '意向强度', value: rating['购房意向强度'] || '-', class: intentionClass },
+        { icon: '💰', label: '购买力', value: rating['购买力评估'] || '-', class: purchaseClass },
+        { icon: '⏱️', label: '决策周期', value: rating['决策周期'] || '-', class: '' },
+        { icon: '🏆', label: '综合评级', value: rating['综合等级'] || '-', class: gradeClass }
+    ];
+    
     container.innerHTML = `
         ${tagsHtml}
         <div class="rating-badges">
-            <div class="rating-badge ${intentionClass}">🎯 意向强度：${rating['购房意向强度'] || '-'}</div>
-            <div class="rating-badge ${purchaseClass}">💰 购买力：${rating['购买力评估'] || '-'}</div>
-            <div class="rating-badge">⏱️ 决策周期：${rating['决策周期'] || '-'}</div>
-            <div class="rating-badge ${gradeClass}">🏆 综合评级：${rating['综合等级'] || '-'}</div>
+            ${ratingDimensions.map(dim => `
+                <div class="rating-badge ${dim.class}">
+                    <span class="badge-icon">${dim.icon}</span>
+                    <span class="badge-label">${dim.label}</span>
+                    <span class="badge-value">${dim.value}</span>
+                </div>
+            `).join('')}
         </div>
-        <div style="width:100%;margin-top:10px;padding:15px;background:rgba(255,255,255,0.8);border-radius:8px;">
-            <strong>评级说明：</strong>${rating['等级说明'] || '暂无说明'}
+        <div class="rating-description">
+            <strong>📋 评级说明</strong>
+            <p>${rating['等级说明'] || '根据客户购房意向、购买力、决策周期等多维度综合评估，该客户暂无详细评级说明。'}</p>
         </div>
     `;
 }
@@ -923,20 +935,48 @@ function displaySentiment(sentiment) {
     const container = document.getElementById('sentimentContent');
     if (!container || !sentiment) return;
     
-    container.innerHTML = `
-        <div class="sentiment-box">
-            <div class="sentiment-box-label">客户态度</div>
-            <div class="sentiment-box-value">${sentiment['客户态度'] || '-'}</div>
-        </div>
-        <div class="sentiment-box">
-            <div class="sentiment-box-label">置业顾问表现</div>
-            <div class="sentiment-box-value">${sentiment['置业顾问表现'] || '-'}</div>
-        </div>
-        <div class="sentiment-box">
-            <div class="sentiment-box-label">沟通效果</div>
-            <div class="sentiment-box-value">${sentiment['沟通效果'] || '-'}</div>
-        </div>
-    `;
+    // 定义情感维度和对应的图标
+    const sentimentDimensions = [
+        { 
+            key: '客户态度', 
+            icon: '😊',
+            desc: '客户整体情绪倾向'
+        },
+        { 
+            key: '置业顾问表现', 
+            icon: '👔',
+            desc: '专业度与服务评价'
+        },
+        { 
+            key: '沟通效果', 
+            icon: '💬',
+            desc: '信息传递与理解程度'
+        }
+    ];
+    
+    // 获取情感倾向的评分样式
+    function getSentimentClass(value) {
+        if (!value) return '';
+        const val = value.toLowerCase();
+        if (val.includes('积极') || val.includes('好') || val.includes('高')) return 'positive';
+        if (val.includes('消极') || val.includes('差') || val.includes('低')) return 'negative';
+        return 'neutral';
+    }
+    
+    container.innerHTML = sentimentDimensions.map(dim => {
+        const value = sentiment[dim.key] || '-';
+        const scoreClass = getSentimentClass(value);
+        const scoreIcon = scoreClass === 'positive' ? '✓' : scoreClass === 'negative' ? '✗' : '−';
+        
+        return `
+            <div class="sentiment-box">
+                <span class="sentiment-box-icon">${dim.icon}</span>
+                <div class="sentiment-box-label">${dim.key}</div>
+                <div class="sentiment-box-value">${value}</div>
+                ${value !== '-' ? `<div class="sentiment-score ${scoreClass}">${scoreIcon} ${scoreClass === 'positive' ? '良好' : scoreClass === 'negative' ? '需改进' : '一般'}</div>` : ''}
+            </div>
+        `;
+    }).join('');
 }
 
 // 显示关键信息

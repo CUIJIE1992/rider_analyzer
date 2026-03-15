@@ -1413,49 +1413,110 @@ body {
 
 .rating-content {
     display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
+    flex-direction: column;
+    gap: 20px;
     margin-top: 15px;
+}
+
+/* 评级标签网格布局 */
+.rating-badges {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
 }
 
 .rating-badge {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    padding: 10px 20px;
-    border-radius: 25px;
+    padding: 12px 20px;
+    border-radius: 12px;
     font-weight: 600;
-    font-size: 1em;
+    font-size: 0.95em;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
 }
 
+.rating-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 意向强度标签 - WCAG AA标准高对比度 */
 .rating-badge.high {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: #059669;
     color: white;
+    border: 2px solid #047857;
+    font-weight: 700;
 }
 
 .rating-badge.medium {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
+    background: #d97706;
     color: white;
+    border: 2px solid #b45309;
+    font-weight: 700;
 }
 
 .rating-badge.low {
-    background: linear-gradient(135deg, #6b7280, #4b5563);
+    background: #4b5563;
     color: white;
+    border: 2px solid #374151;
+    font-weight: 700;
 }
 
+/* 综合评级标签 - A/B/C级客户样式（高对比度设计） */
 .rating-badge.grade-a {
-    background: linear-gradient(135deg, #ffd700, #ffb700);
-    color: #333;
+    background: #f59e0b !important;
+    color: #1f2937 !important;
+    border: 2px solid #d97706 !important;
+    font-weight: 700;
 }
 
 .rating-badge.grade-b {
-    background: linear-gradient(135deg, #c0c0c0, #a0a0a0);
-    color: #333;
+    background: #3b82f6 !important;
+    color: white !important;
+    border: 2px solid #2563eb !important;
+    font-weight: 700;
 }
 
 .rating-badge.grade-c {
-    background: linear-gradient(135deg, #cd7f32, #b87333);
+    background: #6b7280 !important;
+    color: white !important;
+    border: 2px solid #4b5563 !important;
+    font-weight: 700;
+}
+
+/* 决策周期标签 - 高对比度 */
+.rating-badge:not(.high):not(.medium):not(.low):not(.grade-a):not(.grade-b):not(.grade-c) {
+    background: #6366f1;
     color: white;
+    border: 2px solid #4f46e5;
+    font-weight: 700;
+}
+
+/* 评级说明区域 */
+.rating-description {
+    width: 100%;
+    margin-top: 15px;
+    padding: 18px 20px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    border-left: 4px solid #667eea;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.rating-description strong {
+    color: #667eea;
+    font-weight: 600;
+}
+
+.rating-description p {
+    margin: 8px 0 0 0;
+    color: #4b5563;
+    line-height: 1.6;
 }
 
 .rating-level {
@@ -1727,23 +1788,132 @@ body {
     margin-top: 15px;
 }
 
+/* 情感与沟通分析区域 */
+.sentiment-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 15px;
+}
+
 .sentiment-box {
-    padding: 20px;
-    background: var(--bg-light);
+    padding: 24px 20px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
     border-radius: var(--radius-md);
     text-align: center;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.sentiment-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sentiment-box:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+    border-color: #e0e7ff;
+}
+
+.sentiment-box:hover::before {
+    opacity: 1;
+}
+
+/* 客户态度 - 积极/中性/消极 不同颜色 */
+.sentiment-box:nth-child(1) {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border-color: #a7f3d0;
+}
+
+.sentiment-box:nth-child(1)::before {
+    background: linear-gradient(90deg, #10b981, #059669);
+}
+
+/* 置业顾问表现 */
+.sentiment-box:nth-child(2) {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-color: #93c5fd;
+}
+
+.sentiment-box:nth-child(2)::before {
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+}
+
+/* 沟通效果 */
+.sentiment-box:nth-child(3) {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-color: #fcd34d;
+}
+
+.sentiment-box:nth-child(3)::before {
+    background: linear-gradient(90deg, #f59e0b, #d97706);
 }
 
 .sentiment-box-label {
-    font-size: 0.9em;
-    color: var(--text-secondary);
-    margin-bottom: 10px;
+    font-size: 0.85em;
+    color: #64748b;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
 }
 
 .sentiment-box-value {
-    font-size: 1.1em;
+    font-size: 1.05em;
     font-weight: 600;
-    color: var(--text-primary);
+    color: #1e293b;
+    line-height: 1.6;
+    text-align: justify;
+    text-justify: inter-ideograph;
+    hyphens: auto;
+}
+
+/* 客户态度卡片 - 描述文字居中 */
+.sentiment-box:nth-child(1) .sentiment-box-value {
+    text-align: center;
+    text-justify: none;
+}
+
+/* 情感分析图标 */
+.sentiment-box-icon {
+    font-size: 2em;
+    margin-bottom: 12px;
+    display: block;
+}
+
+/* 情感分析评分指示器 */
+.sentiment-score {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+.sentiment-score.positive {
+    color: #059669;
+}
+
+.sentiment-score.neutral {
+    color: #6b7280;
+}
+
+.sentiment-score.negative {
+    color: #dc2626;
 }
 
 /* 关键信息网格 */
@@ -1940,19 +2110,19 @@ body {
     
     .rating-badge.high,
     .rating-badge.grade-a {
-        background: linear-gradient(135deg, #10b981, #059669) !important;
-        color: white !important;
+        background: #f59e0b !important;
+        color: #1f2937 !important;
     }
     
     .rating-badge.medium,
     .rating-badge.grade-b {
-        background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+        background: #3b82f6 !important;
         color: white !important;
     }
     
     .rating-badge.low,
     .rating-badge.grade-c {
-        background: linear-gradient(135deg, #6b7280, #4b5563) !important;
+        background: #6b7280 !important;
         color: white !important;
     }
     
@@ -2090,6 +2260,10 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 20px;
     margin-bottom: 30px;
+}
+
+.stats-cards.three-cards {
+    grid-template-columns: repeat(3, 1fr);
 }
 
 .stat-card {
@@ -2250,6 +2424,10 @@ body {
         grid-template-columns: repeat(2, 1fr);
     }
     
+    .stats-cards.three-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
     .stat-card {
         padding: 20px;
     }
@@ -2312,8 +2490,30 @@ body {
 
 .tags-container {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #bae6fd transparent;
+}
+
+.tags-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.tags-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.tags-container::-webkit-scrollbar-thumb {
+    background: #bae6fd;
+    border-radius: 3px;
+}
+
+.tags-container::-webkit-scrollbar-thumb:hover {
+    background: #7dd3fc;
 }
 
 .customer-tag {
@@ -2380,9 +2580,32 @@ body {
 
 .rating-badges {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 15px;
     margin-top: 15px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #bae6fd transparent;
+}
+
+.rating-badges::-webkit-scrollbar {
+    height: 6px;
+}
+
+.rating-badges::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.rating-badges::-webkit-scrollbar-thumb {
+    background: #bae6fd;
+    border-radius: 3px;
+}
+
+.rating-badges::-webkit-scrollbar-thumb:hover {
+    background: #7dd3fc;
+}
 }
 
 @media (max-width: 768px) {

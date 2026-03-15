@@ -33,25 +33,52 @@ function formatDate(date) {
 async function loadDashboardData() {
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
-    
+
     showLoading(true);
-    
+
     try {
         const params = new URLSearchParams();
         if (startDate) params.append('start_date', startDate);
         if (endDate) params.append('end_date', endDate);
+
+        const paramsString = params.toString();
+
+        // 并行获取所有统计数据，所有API都传递日期参数
+        const [statsResponse, gradeResponse, trendResponse, concernsResponse] = await Promise.all([
+            fetch(`/api/dashboard/stats?${paramsString}`),
+            fetch(`/api/dashboard/grade-distribution?${paramsString}`),
+            fetch(`/api/dashboard/intention-trend?${paramsString}`),
+            fetch(`/api/dashboard/concerns-ranking?${paramsString}`)
+        ]);
         
-        const response = await fetch(`/api/dashboard/stats?${params.toString()}`);
-        
-        if (!response.ok) {
-            throw new Error('获取数据失败');
+        if (!statsResponse.ok) {
+            throw new Error('获取统计数据失败');
         }
         
-        const data = await response.json();
-        updateDashboard(data);
+        const statsData = await statsResponse.json();
+        const gradeData = gradeResponse.ok ? await gradeResponse.json() : { labels: [], data: [] };
+        const trendData = trendResponse.ok ? await trendResponse.json() : { labels: [], high: [], medium: [], low: [] };
+        const concernsData = concernsResponse.ok ? await concernsResponse.json() : { labels: [], data: [] };
+        
+        // 合并所有数据
+        const dashboardData = {
+            ...statsData,
+            grade_distribution: gradeData.labels ? 
+                Object.fromEntries(gradeData.labels.map((label, i) => [label, gradeData.data[i] || 0])) :
+                statsData.grade_distribution || {},
+            trend_data: {
+                labels: trendData.labels || [],
+                values: trendData.high ? trendData.high.map((h, i) => h + (trendData.medium[i] || 0) + (trendData.low[i] || 0)) : []
+            },
+            concerns_ranking: concernsData.labels ? 
+                concernsData.labels.map((name, i) => ({ name, count: concernsData.data[i] || 0 })) :
+                []
+        };
+        
+        updateDashboard(dashboardData);
     } catch (error) {
         console.error('加载数据失败:', error);
-        loadMockData();
+        showError('加载数据失败: ' + error.message);
     } finally {
         showLoading(false);
     }
@@ -91,10 +118,10 @@ function loadMockData() {
 
 function updateDashboard(data) {
     document.getElementById('totalAnalysis').textContent = data.total_analysis || 0;
-    document.getElementById('weeklyNew').textContent = data.weekly_new || 0;
     document.getElementById('avgScore').textContent = (data.avg_score || 0).toFixed(1);
     document.getElementById('classACount').textContent = data.class_a_count || 0;
-    document.getElementById('updateTime').textContent = data.update_time || '-';
+    // 使用当前时间作为数据更新时间
+    document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
     
     renderGradeChart(data.grade_distribution || {});
     renderTrendChart(data.trend_data || { labels: [], values: [] });
@@ -310,4 +337,34 @@ function showLoading(show) {
     } else {
         overlay.style.display = 'none';
     }
+}
+
+function showError(message) {
+    // 创建错误提示元素
+    let errorDiv = document.getElementById('errorMessage');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'errorMessage';
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ef4444;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            max-width: 300px;
+            word-wrap: break-word;
+        `;
+        document.body.appendChild(errorDiv);
+    }
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    
+    // 3秒后自动隐藏
+    setTimeout(() => {
+        errorDiv.style.display = 'none';
+    }, 3000);
 }

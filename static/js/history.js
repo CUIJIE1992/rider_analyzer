@@ -7,6 +7,14 @@ let deleteTargetIds = [];
 let isLoading = false;
 
 function init() {
+    // 设置默认日期筛选为近30天
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    
+    document.getElementById('filterDateEnd').value = endDate.toISOString().split('T')[0];
+    document.getElementById('filterDateStart').value = startDate.toISOString().split('T')[0];
+    
     loadHistoryData();
     bindEvents();
 }
@@ -112,7 +120,8 @@ function handleSearch() {
         }
 
         if (rating) {
-            match = match && item.rating === rating;
+            // 支持匹配 "B" 或 "B类" 格式
+            match = match && (item.rating === rating || item.rating === rating + '类');
         }
 
         if (intention) {
@@ -185,8 +194,8 @@ function renderTable() {
             <td class="time-cell">${item.time}</td>
             <td class="filename-cell" title="${item.filename}">${item.filename}</td>
             <td>
-                <span class="rating-badge grade-${item.rating.toLowerCase()}">
-                    ${item.rating}级客户
+                <span class="rating-badge grade-${item.rating.toLowerCase().replace('类', '')}">
+                    ${item.rating.replace('类', '')}级客户
                 </span>
             </td>
             <td>

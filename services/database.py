@@ -15,7 +15,7 @@ from contextlib import contextmanager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'analysis.db')
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'analysis.db')
 
 
 def get_db_path():
@@ -30,8 +30,11 @@ def get_db_path():
 @contextmanager
 def get_connection():
     """获取数据库连接的上下文管理器"""
-    conn = sqlite3.connect(get_db_path())
+    conn = sqlite3.connect(get_db_path(), timeout=30.0)
     conn.row_factory = sqlite3.Row
+    # 启用WAL模式以提高并发性能
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA busy_timeout=30000')
     try:
         yield conn
     finally:
@@ -131,9 +134,15 @@ def save_record(record):
         
         record_id = cursor.lastrowid
         
+        # 在同一个连接中更新标签计数
         for tag in record.get('tags', []):
             if tag:
-                update_tag_count(tag)
+                cursor.execute('''
+                    INSERT INTO customer_tags (tag_name, count) 
+                    VALUES (?, 1)
+                    ON CONFLICT(tag_name) 
+                    DO UPDATE SET count = count + 1
+                ''', (tag,))
         
         conn.commit()
         logger.info(f"保存分析记录成功，ID: {record_id}")
@@ -362,9 +371,13 @@ def get_records_count():
         return cursor.fetchone()[0]
 
 
-def get_statistics():
+def get_statistics(start_date=None, end_date=None):
     """
     获取统计数据
+    
+    Args:
+        start_date: 开始日期 (可选)
+        end_date: 结束日期 (可选)
     
     Returns:
         dict: 统计信息
@@ -372,21 +385,36 @@ def get_statistics():
     with get_connection() as conn:
         cursor = conn.cursor()
         
-        cursor.execute('SELECT COUNT(*) FROM analysis_records')
+        # 构建WHERE条件
+        where_clause = ''
+        params = []
+        if start_date:
+            where_clause += ' WHERE created_at >= ?'
+            params.append(start_date)
+        if end_date:
+            if where_clause:
+                where_clause += ' AND created_at <= ?'
+            else:
+                where_clause += ' WHERE created_at <= ?'
+            params.append(end_date)
+        
+        cursor.execute(f'SELECT COUNT(*) FROM analysis_records{where_clause}', params)
         total_records = cursor.fetchone()[0]
         
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT customer_grade, COUNT(*) as count 
             FROM analysis_records 
+            {where_clause}
             GROUP BY customer_grade
-        ''')
+        ''', params)
         grade_distribution = {row['customer_grade']: row['count'] for row in cursor.fetchall()}
         
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT intention_level, COUNT(*) as count 
             FROM analysis_records 
+            {where_clause}
             GROUP BY intention_level
-        ''')
+        ''', params)
         intention_distribution = {row['intention_level']: row['count'] for row in cursor.fetchall()}
         
         cursor.execute('SELECT COUNT(*) FROM customer_tags WHERE count > 0')
@@ -398,6 +426,57 @@ def get_statistics():
             'grade_distribution': grade_distribution,
             'intention_distribution': intention_distribution
         }
+
+
+def get_tags_with_date_filter(start_date=None, end_date=None):
+    """
+    获取指定日期范围内的标签统计
+    
+    Args:
+        start_date: 开始日期 (可选)
+        end_date: 结束日期 (可选)
+    
+    Returns:
+        list: 标签列表，每项包含tag_name和count
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 构建WHERE条件
+        where_clause = ''
+        params = []
+        if start_date:
+            where_clause += ' WHERE created_at >= ?'
+            params.append(start_date)
+        if end_date:
+            if where_clause:
+                where_clause += ' AND created_at <= ?'
+            else:
+                where_clause += ' WHERE created_at <= ?'
+            params.append(end_date)
+        
+        # 从记录中提取标签并统计
+        cursor.execute(f'''
+            SELECT tags FROM analysis_records 
+            {where_clause}
+        ''', params)
+        
+        rows = cursor.fetchall()
+        
+        # 统计标签
+        tag_counts = {}
+        for row in rows:
+            if row['tags']:
+                tags = row['tags'].split(',')
+                for tag in tags:
+                    if tag:
+                        tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        
+        # 转换为列表并排序
+        result = [{'tag_name': tag, 'count': count} for tag, count in tag_counts.items()]
+        result.sort(key=lambda x: (-x['count'], x['tag_name']))
+        
+        return result
 
 
 init_db()

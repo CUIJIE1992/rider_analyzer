@@ -149,6 +149,40 @@ def process_audio():
         analyzer = AIAnalyzer()
         analysis_result = analyzer.analyze_conversation(speaker1_text, speaker2_text)
         
+        # 保存分析记录到数据库
+        try:
+            # 生成客户标签
+            tags = analyzer.generate_customer_tags(analysis_result)
+            
+            # 提取关键信息
+            summary = analysis_result.get('总结', {}).get('summary', '') if isinstance(analysis_result.get('总结'), dict) else ''
+            customer_grade = analysis_result.get('客户评级', {}).get('grade', '') if isinstance(analysis_result.get('客户评级'), dict) else ''
+            intention_level = analysis_result.get('购房意向', {}).get('intention', '') if isinstance(analysis_result.get('购房意向'), dict) else ''
+            purchase_stage = analysis_result.get('购房阶段', {}).get('stage', '') if isinstance(analysis_result.get('购房阶段'), dict) else ''
+            
+            # 提取原始文件名（去掉 file_id 前缀）
+            original_filename = filename
+            if '_' in filename:
+                parts = filename.split('_', 1)
+                if len(parts) == 2 and len(parts[0]) == 36:  # UUID 长度为 36
+                    original_filename = parts[1]
+            
+            record = {
+                'filename': original_filename,
+                'customer_grade': customer_grade,
+                'intention_level': intention_level,
+                'purchase_stage': purchase_stage,
+                'summary': summary,
+                'analysis_data': analysis_result,
+                'tags': tags,
+                'speaker1_data': speaker1_text,
+                'speaker2_data': speaker2_text
+            }
+            
+            database.save_record(record)
+        except Exception as e:
+            logger.warning(f'保存分析记录失败: {str(e)}')
+        
         return jsonify({
             'success': True,
             'speaker1': speaker1_text,
@@ -195,6 +229,31 @@ def process_single_file(file_info, batch_id, file_index):
         result['speaker2'] = speaker2_text
         result['analysis'] = analysis_result
         result['status'] = 'completed'
+        
+        # 保存分析记录到数据库
+        try:
+            tags = analyzer.generate_customer_tags(analysis_result)
+            
+            summary = analysis_result.get('总结', {}).get('summary', '') if isinstance(analysis_result.get('总结'), dict) else ''
+            customer_grade = analysis_result.get('客户评级', {}).get('grade', '') if isinstance(analysis_result.get('客户评级'), dict) else ''
+            intention_level = analysis_result.get('购房意向', {}).get('intention', '') if isinstance(analysis_result.get('购房意向'), dict) else ''
+            purchase_stage = analysis_result.get('购房阶段', {}).get('stage', '') if isinstance(analysis_result.get('购房阶段'), dict) else ''
+            
+            record = {
+                'filename': original_filename,
+                'customer_grade': customer_grade,
+                'intention_level': intention_level,
+                'purchase_stage': purchase_stage,
+                'summary': summary,
+                'analysis_data': analysis_result,
+                'tags': tags,
+                'speaker1_data': speaker1_text,
+                'speaker2_data': speaker2_text
+            }
+            
+            database.save_record(record)
+        except Exception as e:
+            logger.warning(f'保存分析记录失败: {str(e)}')
         
     except Exception as e:
         result['status'] = 'failed'
@@ -372,29 +431,36 @@ def analyze_transcript():
             # 生成客户标签
             analyzer = AIAnalyzer()
             tags = analyzer.generate_customer_tags(result)
-            tags_str = ','.join(tags) if tags else ''
             
-            # 提取关键信息
-            summary = result.get('总结', {}).get('summary', '') if isinstance(result.get('总结'), dict) else ''
-            customer_grade = result.get('客户评级', {}).get('grade', '') if isinstance(result.get('客户评级'), dict) else ''
-            intention_level = result.get('购房意向', {}).get('intention', '') if isinstance(result.get('购房意向'), dict) else ''
-            purchase_stage = result.get('购房阶段', {}).get('stage', '') if isinstance(result.get('购房阶段'), dict) else ''
+            # 提取关键信息 - 使用正确的键名
+            summary = result.get('通话概要', {}).get('核心内容', '') if isinstance(result.get('通话概要'), dict) else ''
+            customer_grade = result.get('客户评级', {}).get('综合等级', '') if isinstance(result.get('客户评级'), dict) else ''
+            intention_level = result.get('客户评级', {}).get('购房意向强度', '') if isinstance(result.get('客户评级'), dict) else ''
+            purchase_stage = result.get('购房阶段', {}).get('当前阶段', '') if isinstance(result.get('购房阶段'), dict) else ''
+            
+            # 生成文件名：文本分析_当前时间（精确至毫秒）
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]  # 精确到毫秒
+            filename = f'文本分析_{timestamp}'
             
             record = {
-                'filename': '文本分析',
+                'filename': filename,
                 'customer_grade': customer_grade,
                 'intention_level': intention_level,
                 'purchase_stage': purchase_stage,
                 'summary': summary,
-                'analysis_data': json.dumps(result, ensure_ascii=False),
-                'tags': tags_str,
+                'analysis_data': result,
+                'tags': tags,
                 'speaker1_data': speaker1_text,
                 'speaker2_data': speaker2_text
             }
             
             database.save_record(record)
+            logger.info(f'文本分析记录保存成功')
         except Exception as e:
-            logger.warning(f'保存分析记录失败: {str(e)}')
+            logger.error(f'保存分析记录失败: {str(e)}')
+            import traceback
+            logger.error(traceback.format_exc())
         
         return jsonify({
             'success': True,
@@ -656,24 +722,56 @@ def compare_history():
 def get_dashboard_stats():
     """获取统计卡片数据"""
     try:
-        stats = database.get_statistics()
+        # 获取日期筛选参数
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        # 转换日期格式（添加时间部分）
+        if start_date:
+            start_date = f"{start_date} 00:00:00"
+        if end_date:
+            end_date = f"{end_date} 23:59:59"
+        
+        stats = database.get_statistics(start_date=start_date, end_date=end_date)
         
         with database.get_connection() as conn:
             cursor = conn.cursor()
             
-            week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
-            cursor.execute(
-                'SELECT COUNT(*) FROM analysis_records WHERE created_at >= ?',
-                (week_ago,)
-            )
-            this_week_new = cursor.fetchone()[0]
+            # 构建WHERE条件
+            where_clause = ''
+            params = []
+            if start_date:
+                where_clause += ' WHERE created_at >= ?'
+                params.append(start_date)
+            if end_date:
+                if where_clause:
+                    where_clause += ' AND created_at <= ?'
+                else:
+                    where_clause += ' WHERE created_at <= ?'
+                params.append(end_date)
             
-            cursor.execute('''
+            # 计算本周新增（如果有过滤条件，则计算过滤范围内的数量）
+            if start_date or end_date:
+                cursor.execute(
+                    f'SELECT COUNT(*) FROM analysis_records{where_clause}',
+                    params
+                )
+                this_week_new = cursor.fetchone()[0]
+            else:
+                week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+                cursor.execute(
+                    'SELECT COUNT(*) FROM analysis_records WHERE created_at >= ?',
+                    (week_ago,)
+                )
+                this_week_new = cursor.fetchone()[0]
+            
+            cursor.execute(f'''
                 SELECT intention_level, COUNT(*) as count 
                 FROM analysis_records 
-                WHERE intention_level IS NOT NULL AND intention_level != ''
+                {where_clause}
+                AND intention_level IS NOT NULL AND intention_level != ''
                 GROUP BY intention_level
-            ''')
+            ''', params)
             intention_data = {row['intention_level']: row['count'] for row in cursor.fetchall()}
             
             total_intention = sum(intention_data.values())
@@ -686,14 +784,21 @@ def get_dashboard_stats():
         
         grade_dist = stats.get('grade_distribution', {})
         
+        # 计算A类客户数量
+        class_a_count = grade_dist.get('A类', 0) + grade_dist.get('A', 0)
+        
+        # 将意向强度转换为百分制分数 (1-3分映射到40-100分)
+        avg_score = min(100, max(40, avg_intention * 33.33)) if avg_intention > 0 else 0
+        
         return jsonify({
-            'total_records': stats.get('total_records', 0),
-            'this_week_new': this_week_new,
-            'avg_intention': avg_intention,
-            'top_grade_count': {
-                'A': grade_dist.get('A', 0),
-                'B': grade_dist.get('B', 0),
-                'C': grade_dist.get('C', 0)
+            'total_analysis': stats.get('total_records', 0),
+            'weekly_new': this_week_new,
+            'avg_score': round(avg_score, 1),
+            'class_a_count': class_a_count,
+            'grade_distribution': {
+                'A类': class_a_count,
+                'B类': grade_dist.get('B类', 0) + grade_dist.get('B', 0),
+                'C类': grade_dist.get('C类', 0) + grade_dist.get('C', 0)
             }
         })
         
@@ -705,15 +810,25 @@ def get_dashboard_stats():
 def get_grade_distribution():
     """客户等级分布"""
     try:
-        stats = database.get_statistics()
+        # 获取日期筛选参数
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        # 转换日期格式
+        if start_date:
+            start_date = f"{start_date} 00:00:00"
+        if end_date:
+            end_date = f"{end_date} 23:59:59"
+        
+        stats = database.get_statistics(start_date=start_date, end_date=end_date)
         grade_dist = stats.get('grade_distribution', {})
         
         return jsonify({
             'labels': ['A类', 'B类', 'C类'],
             'data': [
-                grade_dist.get('A', 0),
-                grade_dist.get('B', 0),
-                grade_dist.get('C', 0)
+                grade_dist.get('A类', 0) + grade_dist.get('A', 0),
+                grade_dist.get('B类', 0) + grade_dist.get('B', 0),
+                grade_dist.get('C类', 0) + grade_dist.get('C', 0)
             ]
         })
         
@@ -725,7 +840,9 @@ def get_grade_distribution():
 def get_intention_trend():
     """意向趋势数据"""
     try:
-        days = request.args.get('days', default=30, type=int)
+        # 获取日期筛选参数
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
         
         with database.get_connection() as conn:
             cursor = conn.cursor()
@@ -735,22 +852,48 @@ def get_intention_trend():
             medium_data = []
             low_data = []
             
-            for i in range(days - 1, -1, -1):
-                date = datetime.now() - timedelta(days=i)
-                date_str = date.strftime('%Y-%m-%d')
-                labels.append(date.strftime('%m-%d'))
+            # 如果有日期筛选参数，使用筛选范围内的日期
+            if start_date and end_date:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                days = (end_dt - start_dt).days + 1
                 
-                cursor.execute('''
-                    SELECT intention_level, COUNT(*) as count 
-                    FROM analysis_records 
-                    WHERE DATE(created_at) = ?
-                    GROUP BY intention_level
-                ''', (date_str,))
+                for i in range(days):
+                    current_date = start_dt + timedelta(days=i)
+                    date_str = current_date.strftime('%Y-%m-%d')
+                    labels.append(current_date.strftime('%m-%d'))
+                    
+                    cursor.execute('''
+                        SELECT intention_level, COUNT(*) as count 
+                        FROM analysis_records 
+                        WHERE DATE(created_at) = ?
+                        GROUP BY intention_level
+                    ''', (date_str,))
+                    
+                    day_data = {row['intention_level']: row['count'] for row in cursor.fetchall()}
+                    high_data.append(day_data.get('高', 0))
+                    medium_data.append(day_data.get('中', 0))
+                    low_data.append(day_data.get('低', 0))
+            else:
+                # 默认显示最近30天
+                days = request.args.get('days', default=30, type=int)
                 
-                day_data = {row['intention_level']: row['count'] for row in cursor.fetchall()}
-                high_data.append(day_data.get('高', 0))
-                medium_data.append(day_data.get('中', 0))
-                low_data.append(day_data.get('低', 0))
+                for i in range(days - 1, -1, -1):
+                    date = datetime.now() - timedelta(days=i)
+                    date_str = date.strftime('%Y-%m-%d')
+                    labels.append(date.strftime('%m-%d'))
+                    
+                    cursor.execute('''
+                        SELECT intention_level, COUNT(*) as count 
+                        FROM analysis_records 
+                        WHERE DATE(created_at) = ?
+                        GROUP BY intention_level
+                    ''', (date_str,))
+                    
+                    day_data = {row['intention_level']: row['count'] for row in cursor.fetchall()}
+                    high_data.append(day_data.get('高', 0))
+                    medium_data.append(day_data.get('中', 0))
+                    low_data.append(day_data.get('低', 0))
             
             return jsonify({
                 'labels': labels,
@@ -767,7 +910,17 @@ def get_intention_trend():
 def get_concerns_ranking():
     """关注点排行"""
     try:
-        tags = database.get_all_tags()
+        # 获取日期筛选参数
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        # 转换日期格式
+        if start_date:
+            start_date = f"{start_date} 00:00:00"
+        if end_date:
+            end_date = f"{end_date} 23:59:59"
+        
+        tags = database.get_tags_with_date_filter(start_date=start_date, end_date=end_date)
         
         labels = [tag['tag_name'] for tag in tags[:10]]
         data = [tag['count'] for tag in tags[:10]]
