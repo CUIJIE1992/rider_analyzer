@@ -180,8 +180,8 @@ def generate_pdf_report(analysis, speaker1=None, speaker2=None):
     story = []
     
     # 标题
-    story.append(Paragraph("🛵 骑手电瓶车租赁分析报告", styles['ChineseTitle']))
-    story.append(Paragraph("AI驱动的电瓶车租赁业务洞察与骑手跟进策略", styles['ChineseSubtitle']))
+    story.append(Paragraph("🛵 骑手电动车租赁分析报告", styles['ChineseTitle']))
+    story.append(Paragraph("AI驱动的电动车租赁业务洞察与骑手跟进策略", styles['ChineseSubtitle']))
     story.append(Paragraph(f"生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}", styles['ChineseSubtitle']))
     story.append(Spacer(1, 20))
     
@@ -403,8 +403,8 @@ def generate_pdf_report(analysis, speaker1=None, speaker2=None):
     # 页脚
     story.append(Spacer(1, 30))
     story.append(Paragraph("—" * 50, styles['ChineseSubtitle']))
-    story.append(Paragraph("本报告由骑手电瓶车租赁意向智能分析系统自动生成", styles['ChineseSubtitle']))
-    story.append(Paragraph(f"© {datetime.now().year} AI驱动的电瓶车租赁业务洞察与骑手跟进策略", styles['ChineseSubtitle']))
+    story.append(Paragraph("本报告由骑手电动车租赁意向智能分析系统自动生成", styles['ChineseSubtitle']))
+    story.append(Paragraph(f"© {datetime.now().year} AI驱动的电动车租赁业务洞察与骑手跟进策略", styles['ChineseSubtitle']))
     
     doc.build(story)
     
