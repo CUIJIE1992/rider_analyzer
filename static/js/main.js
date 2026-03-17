@@ -442,31 +442,69 @@ function displayResults(data) {
 // 显示微信风格对话
 function displayChatMessages(speaker1Data, speaker2Data, role1, role2) {
     const chatMessages = document.getElementById('chatMessages');
-    if (!chatMessages) return;
+    if (!chatMessages) {
+        console.error('[displayChatMessages] chatMessages元素不存在');
+        return;
+    }
+    
+    console.log('[displayChatMessages] speaker1Data:', speaker1Data);
+    console.log('[displayChatMessages] speaker2Data:', speaker2Data);
+    console.log('[displayChatMessages] role1:', role1, 'role2:', role2);
     
     let messages = [];
     
-    if (Array.isArray(speaker1Data)) {
+    // 处理speaker1数据
+    if (Array.isArray(speaker1Data) && speaker1Data.length > 0) {
         speaker1Data.forEach((item, index) => {
-            messages.push({
-                speaker: 1,
-                text: typeof item === 'object' ? item.text : item,
-                order: index * 2
-            });
+            const text = typeof item === 'object' ? (item.text || item.content || '') : String(item);
+            if (text.trim()) {
+                messages.push({
+                    speaker: 1,
+                    text: text,
+                    order: index * 2
+                });
+            }
+        });
+    } else if (typeof speaker1Data === 'string' && speaker1Data.trim()) {
+        // 如果是字符串，直接作为一个消息
+        messages.push({
+            speaker: 1,
+            text: speaker1Data,
+            order: 0
         });
     }
     
-    if (Array.isArray(speaker2Data)) {
+    // 处理speaker2数据
+    if (Array.isArray(speaker2Data) && speaker2Data.length > 0) {
         speaker2Data.forEach((item, index) => {
-            messages.push({
-                speaker: 2,
-                text: typeof item === 'object' ? item.text : item,
-                order: index * 2 + 1
-            });
+            const text = typeof item === 'object' ? (item.text || item.content || '') : String(item);
+            if (text.trim()) {
+                messages.push({
+                    speaker: 2,
+                    text: text,
+                    order: index * 2 + 1
+                });
+            }
+        });
+    } else if (typeof speaker2Data === 'string' && speaker2Data.trim()) {
+        // 如果是字符串，直接作为一个消息
+        messages.push({
+            speaker: 2,
+            text: speaker2Data,
+            order: 1
         });
     }
     
+    console.log('[displayChatMessages] 处理后的messages:', messages);
+    
+    // 按顺序排序
     messages.sort((a, b) => a.order - b.order);
+    
+    // 如果没有消息，显示提示
+    if (messages.length === 0) {
+        chatMessages.innerHTML = '<div style="text-align:center;padding:40px;color:#999;">暂无对话内容</div>';
+        return;
+    }
     
     let html = '';
     messages.forEach((msg, index) => {
@@ -486,6 +524,7 @@ function displayChatMessages(speaker1Data, speaker2Data, role1, role2) {
     });
     
     chatMessages.innerHTML = html;
+    console.log('[displayChatMessages] 对话渲染完成，共', messages.length, '条消息');
 }
 
 // 复制聊天文本
@@ -640,14 +679,14 @@ function displayAnalysis(analysis) {
     // 通话概要
     displayOverview(analysis['通话概要']);
     
-    // 客户评级
+    // 骑手评级
     displayRating(analysis['客户评级']);
     
-    // 购房意向
-    displayIntention(analysis['购房意向']);
+    // 租赁意向
+    displayIntention(analysis['租赁意向']);
     
-    // 购房阶段
-    displayStage(analysis['购房阶段']);
+    // 从业阶段
+    displayStage(analysis['从业阶段']);
     
     // 核心关注点
     displayConcerns(analysis['核心关注点']);
@@ -681,8 +720,8 @@ function displayOverview(overview) {
             <div class="overview-stat-label">有效沟通程度</div>
         </div>
         <div class="overview-stat-item">
-            <div class="overview-stat-value">${overview['客户响应积极性'] || '-'}</div>
-            <div class="overview-stat-label">客户响应积极性</div>
+            <div class="overview-stat-value">${overview['骑手响应积极性'] || '-'}</div>
+            <div class="overview-stat-label">骑手响应积极性</div>
         </div>
     `;
 }
@@ -693,21 +732,21 @@ function generateCustomerTags(analysis) {
     if (!analysis) return tags;
     
     const rating = analysis['客户评级'] || {};
-    const stage = analysis['购房阶段'] || {};
+    const stage = analysis['从业阶段'] || {};
     const concerns = analysis['核心关注点'] || {};
     
-    const intention = rating['购房意向强度'] || '';
+    const intention = rating['租赁意向强度'] || '';
     if (intention === '高') {
-        tags.push({ text: '高意向客户', class: 'tag-high' });
+        tags.push({ text: '高意向骑手', class: 'tag-high' });
     } else if (intention === '中') {
-        tags.push({ text: '中意向客户', class: 'tag-medium' });
+        tags.push({ text: '中意向骑手', class: 'tag-medium' });
     } else if (intention === '低') {
-        tags.push({ text: '低意向客户', class: 'tag-low' });
+        tags.push({ text: '低意向骑手', class: 'tag-low' });
     }
     
     const grade = rating['综合等级'] || '';
     if (grade === 'A类') {
-        tags.push({ text: 'A类优质客户', class: 'tag-premium' });
+        tags.push({ text: 'A类优质骑手', class: 'tag-premium' });
     }
     
     const allConcerns = [];
@@ -722,20 +761,24 @@ function generateCustomerTags(analysis) {
     allConcerns.push(...otherConcerns);
     
     const allConcernsText = allConcerns.join(' ');
-    if (allConcernsText.includes('学区') || allConcernsText.includes('教育')) {
-        tags.push({ text: '学区关注', class: 'tag-education' });
+    if (allConcernsText.includes('续航') || allConcernsText.includes('电池')) {
+        tags.push({ text: '续航关注', class: 'tag-education' });
     }
-    if (allConcernsText.includes('交通')) {
-        tags.push({ text: '交通关注', class: 'tag-transport' });
+    if (allConcernsText.includes('换电')) {
+        tags.push({ text: '换电关注', class: 'tag-transport' });
+    }
+    if (allConcernsText.includes('押金')) {
+        tags.push({ text: '押金敏感', class: 'tag-improve' });
+    }
+    if (allConcernsText.includes('价格') || allConcernsText.includes('租金')) {
+        tags.push({ text: '价格敏感', class: 'tag-first-time' });
     }
     
     const currentStage = stage['当前阶段'] || '';
-    if (currentStage.includes('改善')) {
-        tags.push({ text: '改善型需求', class: 'tag-improve' });
-    } else if (currentStage.includes('刚需') || currentStage.includes('首次')) {
-        tags.push({ text: '刚需客户', class: 'tag-first-time' });
-    } else if (currentStage.includes('决策')) {
-        tags.push({ text: '决策期客户', class: 'tag-decision' });
+    if (currentStage.includes('决策')) {
+        tags.push({ text: '决策期骑手', class: 'tag-decision' });
+    } else if (currentStage.includes('咨询')) {
+        tags.push({ text: '咨询期骑手', class: 'tag-first-time' });
     }
     
     return tags;
@@ -745,8 +788,8 @@ function displayRating(rating) {
     const container = document.getElementById('ratingContent');
     if (!container || !rating) return;
     
-    const intentionClass = rating['购房意向强度'] === '高' ? 'high' : (rating['购房意向强度'] === '中' ? 'medium' : 'low');
-    const purchaseClass = rating['购买力评估'] === '高' ? 'high' : (rating['购买力评估'] === '中' ? 'medium' : 'low');
+    const intentionClass = rating['租赁意向强度'] === '高' ? 'high' : (rating['租赁意向强度'] === '中' ? 'medium' : 'low');
+    const stabilityClass = rating['从业稳定性'] === '高' ? 'high' : (rating['从业稳定性'] === '中' ? 'medium' : 'low');
     const gradeClass = rating['综合等级'] === 'A类' ? 'grade-a' : (rating['综合等级'] === 'B类' ? 'grade-b' : 'grade-c');
     
     const tags = generateCustomerTags(analysisResults ? analysisResults.analysis : null);
@@ -754,7 +797,7 @@ function displayRating(rating) {
     if (tags.length > 0) {
         tagsHtml = `
             <div class="customer-tags">
-                <div class="tags-title">🏷️ 客户标签</div>
+                <div class="tags-title">🏷️ 骑手标签</div>
                 <div class="tags-container">
                     ${tags.map(tag => `<span class="customer-tag ${tag.class}">${tag.text}</span>`).join('')}
                 </div>
@@ -764,8 +807,8 @@ function displayRating(rating) {
     
     // 构建评级维度数据
     const ratingDimensions = [
-        { icon: '🎯', label: '意向强度', value: rating['购房意向强度'] || '-', class: intentionClass },
-        { icon: '💰', label: '购买力', value: rating['购买力评估'] || '-', class: purchaseClass },
+        { icon: '🎯', label: '租赁意向', value: rating['租赁意向强度'] || '-', class: intentionClass },
+        { icon: '💼', label: '从业稳定性', value: rating['从业稳定性'] || '-', class: stabilityClass },
         { icon: '⏱️', label: '决策周期', value: rating['决策周期'] || '-', class: '' },
         { icon: '🏆', label: '综合评级', value: rating['综合等级'] || '-', class: gradeClass }
     ];
@@ -783,21 +826,21 @@ function displayRating(rating) {
         </div>
         <div class="rating-description">
             <strong>📋 评级说明</strong>
-            <p>${rating['等级说明'] || '根据客户购房意向、购买力、决策周期等多维度综合评估，该客户暂无详细评级说明。'}</p>
+            <p>${rating['等级说明'] || '根据骑手租赁意向、从业稳定性、决策周期等多维度综合评估，该骑手暂无详细评级说明。'}</p>
         </div>
     `;
 }
 
-// 显示购房意向
+// 显示租赁意向
 function displayIntention(intention) {
     const container = document.getElementById('intentionGrid');
     if (!container || !intention) return;
     
     const items = [
-        { label: '面积需求', value: intention['面积需求'] },
-        { label: '价格区间', value: intention['价格区间'] },
+        { label: '车型需求', value: intention['车型需求'] },
+        { label: '预算范围', value: intention['预算范围'] },
         { label: '区域偏好', value: intention['区域偏好'] },
-        { label: '户型需求', value: intention['户型需求'] }
+        { label: '租期需求', value: intention['租期需求'] }
     ];
     
     container.innerHTML = items.map(item => `
@@ -808,7 +851,7 @@ function displayIntention(intention) {
     `).join('');
 }
 
-// 显示购房阶段
+// 显示从业阶段
 function displayStage(stage) {
     const container = document.getElementById('stageContent');
     if (!container || !stage) return;
@@ -905,7 +948,7 @@ function displayCompetitor(competitor) {
     
     html += `
         <div class="competitor-tendency">
-            <div class="tendency-label">客户对比倾向</div>
+            <div class="tendency-label">骑手对比倾向</div>
             <div class="tendency-value ${tendencyClass}">${competitor['对比倾向'] || '暂无对比'}</div>
         </div>
     `;
@@ -913,15 +956,15 @@ function displayCompetitor(competitor) {
     html += '<div class="competitor-compare">';
     html += `
         <div class="compare-section advantages">
-            <h4>✅ 本项目优势</h4>
+            <h4>✅ 本公司优势</h4>
             <ul>
-                ${(competitor['本项目优势'] || []).map(a => `<li>${a}</li>`).join('')}
+                ${(competitor['本公司优势'] || []).map(a => `<li>${a}</li>`).join('')}
             </ul>
         </div>
         <div class="compare-section disadvantages">
-            <h4>⚠️ 本项目劣势</h4>
+            <h4>⚠️ 本公司劣势</h4>
             <ul>
-                ${(competitor['本项目劣势'] || []).map(d => `<li>${d}</li>`).join('')}
+                ${(competitor['本公司劣势'] || []).map(d => `<li>${d}</li>`).join('')}
             </ul>
         </div>
     `;
@@ -938,12 +981,12 @@ function displaySentiment(sentiment) {
     // 定义情感维度和对应的图标
     const sentimentDimensions = [
         { 
-            key: '客户态度', 
+            key: '骑手态度', 
             icon: '😊',
-            desc: '客户整体情绪倾向'
+            desc: '骑手整体情绪倾向'
         },
         { 
-            key: '置业顾问表现', 
+            key: '租赁顾问表现', 
             icon: '👔',
             desc: '专业度与服务评价'
         },
@@ -986,7 +1029,7 @@ function displayKeyInfo(keyInfo) {
     
     const items = [
         { label: '📞 联系方式', value: keyInfo['联系方式'] },
-        { label: '📅 看房安排', value: keyInfo['看房安排'] },
+        { label: '📅 试车安排', value: keyInfo['试车安排'] },
         { label: '📝 特殊需求', value: keyInfo['特殊需求'] }
     ];
     
@@ -1130,7 +1173,7 @@ async function downloadPDF() {
         
         const a = document.createElement('a');
         a.href = url;
-        a.download = `购房电话分析报告_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.pdf`;
+        a.download = `骑手租赁分析报告_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.pdf`;
         a.click();
         
         URL.revokeObjectURL(url);
@@ -1163,12 +1206,12 @@ function downloadResults() {
 
 // 生成报告
 function generateReport() {
-    let report = '购房电话分析报告\n';
+    let report = '骑手租赁分析报告\n';
     report += '=' .repeat(50) + '\n\n';
     
     const analysis = analysisResults.analysis || {};
-    const role1 = analysis['角色识别'] ? analysis['角色识别']['说话人1'] : '置业顾问';
-    const role2 = analysis['角色识别'] ? analysis['角色识别']['说话人2'] : '客户';
+    const role1 = analysis['角色识别'] ? analysis['角色识别']['说话人1'] : '租赁顾问';
+    const role2 = analysis['角色识别'] ? analysis['角色识别']['说话人2'] : '骑手';
     
     // 对话记录
     report += `【${role1}】\n`;
@@ -1188,7 +1231,7 @@ function generateReport() {
     }
     
     report += '\n' + '='.repeat(50) + '\n';
-    report += '购房电话分析结果\n';
+    report += '骑手租赁分析结果\n';
     report += '='.repeat(50) + '\n\n';
     
     // 通话概要
@@ -1196,38 +1239,38 @@ function generateReport() {
         report += '【通话概要】\n';
         report += `  通话时长: ${analysis['通话概要']['通话时长估算'] || '-'}\n`;
         report += `  有效沟通程度: ${analysis['通话概要']['有效沟通程度'] || '-'}\n`;
-        report += `  客户响应积极性: ${analysis['通话概要']['客户响应积极性'] || '-'}\n\n`;
+        report += `  骑手响应积极性: ${analysis['通话概要']['骑手响应积极性'] || '-'}\n\n`;
     }
     
-    // 客户评级
+    // 骑手评级
     if (analysis['客户评级']) {
-        report += '【客户评级】\n';
-        report += `  购房意向强度: ${analysis['客户评级']['购房意向强度'] || '-'}\n`;
-        report += `  购买力评估: ${analysis['客户评级']['购买力评估'] || '-'}\n`;
+        report += '【骑手评级】\n';
+        report += `  租赁意向强度: ${analysis['客户评级']['租赁意向强度'] || '-'}\n`;
+        report += `  从业稳定性: ${analysis['客户评级']['从业稳定性'] || '-'}\n`;
         report += `  决策周期: ${analysis['客户评级']['决策周期'] || '-'}\n`;
         report += `  综合等级: ${analysis['客户评级']['综合等级'] || '-'}\n`;
         report += `  等级说明: ${analysis['客户评级']['等级说明'] || '-'}\n\n`;
     }
     
-    // 购房意向
-    if (analysis['购房意向']) {
-        report += '【购房意向】\n';
-        report += `  面积需求: ${analysis['购房意向']['面积需求'] || '未提及'}\n`;
-        report += `  价格区间: ${analysis['购房意向']['价格区间'] || '未提及'}\n`;
-        report += `  区域偏好: ${analysis['购房意向']['区域偏好'] || '未提及'}\n`;
-        report += `  户型需求: ${analysis['购房意向']['户型需求'] || '未提及'}\n\n`;
+    // 租赁意向
+    if (analysis['租赁意向']) {
+        report += '【租赁意向】\n';
+        report += `  车型需求: ${analysis['租赁意向']['车型需求'] || '未提及'}\n`;
+        report += `  预算范围: ${analysis['租赁意向']['预算范围'] || '未提及'}\n`;
+        report += `  区域偏好: ${analysis['租赁意向']['区域偏好'] || '未提及'}\n`;
+        report += `  租期需求: ${analysis['租赁意向']['租期需求'] || '未提及'}\n\n`;
     }
     
-    // 购房阶段
-    if (analysis['购房阶段']) {
-        report += '【购房阶段】\n';
-        report += `  当前阶段: ${analysis['购房阶段']['当前阶段'] || '-'}\n`;
-        report += `  阶段特征: ${analysis['购房阶段']['阶段特征'] || '-'}\n\n`;
+    // 从业阶段
+    if (analysis['从业阶段']) {
+        report += '【从业阶段】\n';
+        report += `  当前阶段: ${analysis['从业阶段']['当前阶段'] || '-'}\n`;
+        report += `  阶段特征: ${analysis['从业阶段']['阶段特征'] || '-'}\n\n`;
     }
     
     // 核心关注点
     if (analysis['核心关注点']) {
-        report += '【客户核心关注点】\n';
+        report += '【骑手核心关注点】\n';
         if (analysis['核心关注点']['第一关注']) {
             report += `  1. ${analysis['核心关注点']['第一关注']['因素']}: ${analysis['核心关注点']['第一关注']['具体内容']}\n`;
         }
@@ -1250,13 +1293,13 @@ function generateReport() {
             report += `  提及竞品: ${analysis['竞品分析']['提及竞品'].join('、')}\n`;
         }
         report += `  对比倾向: ${analysis['竞品分析']['对比倾向'] || '-'}\n`;
-        if (analysis['竞品分析']['本项目优势'] && analysis['竞品分析']['本项目优势'].length > 0) {
-            report += `  本项目优势:\n`;
-            analysis['竞品分析']['本项目优势'].forEach(a => report += `    ✓ ${a}\n`);
+        if (analysis['竞品分析']['本公司优势'] && analysis['竞品分析']['本公司优势'].length > 0) {
+            report += `  本公司优势:\n`;
+            analysis['竞品分析']['本公司优势'].forEach(a => report += `    ✓ ${a}\n`);
         }
-        if (analysis['竞品分析']['本项目劣势'] && analysis['竞品分析']['本项目劣势'].length > 0) {
-            report += `  本项目劣势:\n`;
-            analysis['竞品分析']['本项目劣势'].forEach(d => report += `    ✗ ${d}\n`);
+        if (analysis['竞品分析']['本公司劣势'] && analysis['竞品分析']['本公司劣势'].length > 0) {
+            report += `  本公司劣势:\n`;
+            analysis['竞品分析']['本公司劣势'].forEach(d => report += `    ✗ ${d}\n`);
         }
         report += '\n';
     }
@@ -1264,8 +1307,8 @@ function generateReport() {
     // 情感分析
     if (analysis['情感分析']) {
         report += '【情感与沟通分析】\n';
-        report += `  客户态度: ${analysis['情感分析']['客户态度'] || '-'}\n`;
-        report += `  置业顾问表现: ${analysis['情感分析']['置业顾问表现'] || '-'}\n`;
+        report += `  骑手态度: ${analysis['情感分析']['骑手态度'] || '-'}\n`;
+        report += `  租赁顾问表现: ${analysis['情感分析']['租赁顾问表现'] || '-'}\n`;
         report += `  沟通效果: ${analysis['情感分析']['沟通效果'] || '-'}\n\n`;
     }
     
@@ -1273,7 +1316,7 @@ function generateReport() {
     if (analysis['关键信息']) {
         report += '【关键信息】\n';
         report += `  联系方式: ${analysis['关键信息']['联系方式'] || '暂无'}\n`;
-        report += `  看房安排: ${analysis['关键信息']['看房安排'] || '暂无'}\n`;
+        report += `  试车安排: ${analysis['关键信息']['试车安排'] || '暂无'}\n`;
         report += `  特殊需求: ${analysis['关键信息']['特殊需求'] || '暂无'}\n\n`;
     }
     
@@ -1364,10 +1407,16 @@ function displayHistoryRecord(record) {
         return;
     }
     
-    document.getElementById('uploadSection').style.display = 'none';
-    document.getElementById('progressSection').style.display = 'none';
-    document.getElementById('resultsSection').style.display = 'block';
+    // 显示结果区域
+    const uploadSection = document.getElementById('uploadSection');
+    const progressSection = document.getElementById('progressSection');
+    const resultsSection = document.getElementById('resultsSection');
     
+    if (uploadSection) uploadSection.style.display = 'none';
+    if (progressSection) progressSection.style.display = 'none';
+    if (resultsSection) resultsSection.style.display = 'block';
+    
+    // 获取角色名称
     let role1 = '说话人 1';
     let role2 = '说话人 2';
     
@@ -1377,16 +1426,7 @@ function displayHistoryRecord(record) {
     }
     console.log('[displayHistoryRecord] 角色识别 - role1:', role1, 'role2:', role2);
     
-    const sentiment1Label = document.getElementById('sentiment1Label');
-    const sentiment2Label = document.getElementById('sentiment2Label');
-    const viewpoints1Label = document.getElementById('viewpoints1Label');
-    const viewpoints2Label = document.getElementById('viewpoints2Label');
-    
-    if (sentiment1Label) sentiment1Label.textContent = role1;
-    if (sentiment2Label) sentiment2Label.textContent = role2;
-    if (viewpoints1Label) viewpoints1Label.textContent = role1;
-    if (viewpoints2Label) viewpoints2Label.textContent = role2;
-    
+    // 解析对话数据
     let speaker1Data = [];
     let speaker2Data = [];
     
@@ -1417,8 +1457,10 @@ function displayHistoryRecord(record) {
     console.log('[displayHistoryRecord] speaker1Data 长度:', speaker1Data.length);
     console.log('[displayHistoryRecord] speaker2Data 长度:', speaker2Data.length);
     
+    // 显示对话
     displayChatMessages(speaker1Data, speaker2Data, role1, role2);
     
+    // 设置全局分析结果
     analysisResults = {
         analysis: analysis,
         speaker1: speaker1Data,
@@ -1426,12 +1468,14 @@ function displayHistoryRecord(record) {
     };
     console.log('[displayHistoryRecord] 设置 analysisResults:', analysisResults);
     
+    // 显示分析结果
     console.log('[displayHistoryRecord] 调用 displayAnalysis');
     displayAnalysis(analysis);
     
+    // 更新页面标题
     document.title = `分析结果 - ${record.filename || '历史记录'}`;
     
-    const resultsSection = document.getElementById('resultsSection');
+    // 滚动到结果区域
     if (resultsSection) {
         resultsSection.scrollIntoView({ behavior: 'smooth' });
     }
@@ -1829,16 +1873,16 @@ function generateSingleReport(result) {
     report += '─'.repeat(40) + '\n';
     
     if (analysis['客户评级']) {
-        report += `\n【客户评级】\n`;
-        report += `  购房意向强度: ${analysis['客户评级']['购房意向强度'] || '-'}\n`;
+        report += `\n【骑手评级】\n`;
+        report += `  租赁意向强度: ${analysis['客户评级']['租赁意向强度'] || '-'}\n`;
         report += `  综合等级: ${analysis['客户评级']['综合等级'] || '-'}\n`;
     }
     
-    if (analysis['购房意向']) {
-        report += `\n【购房意向】\n`;
-        report += `  面积需求: ${analysis['购房意向']['面积需求'] || '未提及'}\n`;
-        report += `  价格区间: ${analysis['购房意向']['价格区间'] || '未提及'}\n`;
-        report += `  区域偏好: ${analysis['购房意向']['区域偏好'] || '未提及'}\n`;
+    if (analysis['租赁意向']) {
+        report += `\n【租赁意向】\n`;
+        report += `  车型需求: ${analysis['租赁意向']['车型需求'] || '未提及'}\n`;
+        report += `  预算范围: ${analysis['租赁意向']['预算范围'] || '未提及'}\n`;
+        report += `  区域偏好: ${analysis['租赁意向']['区域偏好'] || '未提及'}\n`;
     }
     
     if (analysis['总结']) {

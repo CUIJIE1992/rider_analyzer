@@ -15,11 +15,8 @@ from contextlib import contextmanager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Vercel环境下使用/tmp目录存储数据库
-if os.environ.get('VERCEL'):
-    DB_PATH = '/tmp/analysis.db'
-else:
-    DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'analysis.db')
+# 数据库文件路径 - 支持环境变量配置（Render部署时使用/tmp/data）
+DB_PATH = os.getenv('DATABASE_PATH', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'analysis.db'))
 
 
 def get_db_path():
@@ -116,8 +113,17 @@ def save_record(record):
         
         tags_str = ','.join(record.get('tags', [])) if isinstance(record.get('tags'), list) else record.get('tags', '')
         analysis_json = json.dumps(record.get('analysis_data', {}), ensure_ascii=False)
-        speaker1_json = json.dumps(record.get('speaker1_data', []), ensure_ascii=False) if record.get('speaker1_data') else ''
-        speaker2_json = json.dumps(record.get('speaker2_data', []), ensure_ascii=False) if record.get('speaker2_data') else ''
+        
+        # 确保 speaker1_data 和 speaker2_data 以数组格式存储
+        speaker1_data = record.get('speaker1_data', [])
+        if isinstance(speaker1_data, str):
+            speaker1_data = [speaker1_data] if speaker1_data.strip() else []
+        speaker1_json = json.dumps(speaker1_data, ensure_ascii=False) if speaker1_data else ''
+        
+        speaker2_data = record.get('speaker2_data', [])
+        if isinstance(speaker2_data, str):
+            speaker2_data = [speaker2_data] if speaker2_data.strip() else []
+        speaker2_json = json.dumps(speaker2_data, ensure_ascii=False) if speaker2_data else ''
         
         cursor.execute('''
             INSERT INTO analysis_records 

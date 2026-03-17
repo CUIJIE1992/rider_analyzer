@@ -3,7 +3,6 @@ Flask-CORS==4.0.0
 Werkzeug==3.0.1
 pydub==0.25.1
 SpeechRecognition==3.10.1
-pyAudio==0.2.14
 openai==1.6.1
 python-dotenv==1.0.0
 gunicorn==21.2.0

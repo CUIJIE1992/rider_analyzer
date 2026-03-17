@@ -195,7 +195,7 @@ function renderTable() {
             <td class="filename-cell" title="${item.filename}">${item.filename}</td>
             <td>
                 <span class="rating-badge grade-${item.rating.toLowerCase().replace('类', '')}">
-                    ${item.rating.replace('类', '')}级客户
+                    ${item.rating.replace('类', '')}级骑手
                 </span>
             </td>
             <td>
@@ -460,7 +460,7 @@ function handleCompare() {
                 <span class="compare-card-time">${item.time}</span>
             </div>
             <div class="compare-item">
-                <span class="compare-item-label">客户等级</span>
+                <span class="compare-item-label">骑手等级</span>
                 <span class="compare-item-value">
                     <span class="rating-badge grade-${item.rating.toLowerCase()}">${item.rating}级</span>
                 </span>
@@ -472,7 +472,7 @@ function handleCompare() {
                 </span>
             </div>
             <div class="compare-item">
-                <span class="compare-item-label">购房阶段</span>
+                <span class="compare-item-label">从业阶段</span>
                 <span class="compare-item-value">${item.stage}</span>
             </div>
             <div class="compare-item">

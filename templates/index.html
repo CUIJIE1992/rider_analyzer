@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>购房意向智能分析系统</title>
+    <title>骑手意向智能分析系统</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -12,15 +12,15 @@
         <header class="header">
             <div class="header-content">
                 <div class="logo">
-                    <span class="logo-icon">🏠</span>
+                    <span class="logo-icon">🛵</span>
                     <div class="logo-text">
-                        <h1>购房意向智能分析系统</h1>
-                        <p class="subtitle">AI驱动的房产销售洞察与客户跟进策略</p>
+                        <h1>骑手意向智能分析系统</h1>
+                        <p class="subtitle">AI驱动的电瓶车租赁业务洞察与骑手跟进策略</p>
                     </div>
                 </div>
                 <div class="header-badge">
-                    <span class="badge-item">🎯 客户评级</span>
-                    <span class="badge-item">📊 意向分析</span>
+                    <span class="badge-item">🎯 骑手评级</span>
+                    <span class="badge-item">📊 租赁意向</span>
                     <span class="badge-item">💡 跟进策略</span>
                 </div>
             </div>
@@ -176,13 +176,19 @@
                 </div>
                 <textarea id="transcriptInput" class="transcript-textarea" placeholder="示例格式：
 说话人 1 00:03
-你好。您好，中海永定九里项目售楼处...
+您好，这里是XX电瓶车租赁公司...
 
 说话人 2 00:12
-单价多少钱？
+你们那边租车多少钱一个月？
 
-说话人 1 00:14
-现在咱们单价的话大概在45,000左右..."></textarea>
+说话人 1 00:15
+我们这边月租是299元起，包含换电服务...
+
+说话人 2 00:20
+电池续航怎么样？能跑多少公里？
+
+说话人 1 00:23
+我们用的是新国标车，续航大概60-80公里，支持无限换电..."></textarea>
                 <div class="text-input-footer">
                     <span class="char-count" id="charCount">0 字符</span>
                     <button class="btn btn-primary btn-large" id="analyzeTextBtn">
@@ -271,24 +277,24 @@
                         <div class="overview-stats" id="overviewStats"></div>
                     </div>
                     
-                    <!-- 客户评级卡片 -->
+                    <!-- 骑手评级卡片 -->
                     <div class="analysis-card rating-card" id="ratingCard">
                         <div class="card-icon">🏆</div>
-                        <h3>客户评级</h3>
+                        <h3>骑手评级</h3>
                         <div class="rating-content" id="ratingContent"></div>
                     </div>
                     
-                    <!-- 购房意向 -->
+                    <!-- 租赁意向 -->
                     <div class="analysis-card">
-                        <div class="card-icon">🏠</div>
-                        <h3>购房意向分析</h3>
+                        <div class="card-icon">🛵</div>
+                        <h3>租赁意向分析</h3>
                         <div class="intention-grid" id="intentionGrid"></div>
                     </div>
                     
-                    <!-- 购房阶段 -->
+                    <!-- 从业阶段 -->
                     <div class="analysis-card stage-card">
                         <div class="card-icon">📍</div>
-                        <h3>购房阶段识别</h3>
+                        <h3>从业阶段识别</h3>
                         <div class="stage-content" id="stageContent"></div>
                     </div>
                     

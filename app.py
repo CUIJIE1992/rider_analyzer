@@ -10,6 +10,7 @@ import json
 import threading
 import zipfile
 import logging
+import time
 from io import BytesIO
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, url_for, send_file
@@ -24,6 +25,11 @@ logger = logging.getLogger(__name__)
 batch_processes = {}
 batch_lock = threading.Lock()
 
+# 批处理任务过期时间（秒）
+BATCH_EXPIRE_SECONDS = 2 * 60 * 60  # 2小时
+# 清理间隔（秒）
+CLEANUP_INTERVAL_SECONDS = 5 * 60  # 5分钟
+
 # 加载环境变量
 load_dotenv()
 
@@ -33,8 +39,7 @@ CORS(app)
 
 # 配置
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
-# Vercel环境下使用/tmp目录作为上传目录
-app.config['UPLOAD_FOLDER'] = '/tmp/uploads' if os.environ.get('VERCEL') else 'uploads'
+app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'mp3'}
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
 
@@ -46,6 +51,85 @@ def allowed_file(filename):
     """检查文件是否为允许的格式"""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+
+def _extract_field(data, primary_keys, sub_keys):
+    """
+    从嵌套字典中提取字段值,支持多种键名格式
+
+    Args:
+        data: 数据字典
+        primary_keys: 主键列表,按优先级尝试
+        sub_keys: 子键列表,按优先级尝试
+
+    Returns:
+        提取到的字段值,如果未找到则返回空字符串
+    """
+    for primary_key in primary_keys:
+        if primary_key in data:
+            value = data[primary_key]
+            if isinstance(value, dict):
+                for sub_key in sub_keys:
+                    if sub_key in value:
+                        return value[sub_key]
+            else:
+                return str(value)
+    return ''
+
+
+def _save_analysis_record(analysis_result, speaker1_text, speaker2_text, filename=None):
+    """
+    保存分析记录到数据库的公共函数
+
+    Args:
+        analysis_result: AI分析结果字典
+        speaker1_text: 说话人1的文本
+        speaker2_text: 说话人2的文本
+        filename: 文件名,如果为None则自动生成时间戳文件名
+    """
+    try:
+        from services.ai_analyzer import AIAnalyzer
+
+        # 生成客户标签
+        analyzer = AIAnalyzer()
+        tags = analyzer.generate_customer_tags(analysis_result)
+
+        # 统一的字段提取逻辑
+        # 支持多种键名格式,优先使用新格式
+        summary = _extract_field(analysis_result, ['总结', '通话概要'], ['summary', '核心内容'])
+        customer_grade = _extract_field(analysis_result, ['客户评级'], ['grade', '综合等级'])
+        intention_level = _extract_field(analysis_result, ['客户评级', '租赁意向'], ['租赁意向强度', 'intention'])
+        purchase_stage = _extract_field(analysis_result, ['从业阶段'], ['stage', '当前阶段'])
+
+        # 如果没有提供文件名,则自动生成
+        if filename is None:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
+            filename = f'文本分析_{timestamp}'
+        else:
+            # 提取原始文件名(去掉 file_id 前缀)
+            if '_' in filename:
+                parts = filename.split('_', 1)
+                if len(parts) == 2 and len(parts[0]) == 36:  # UUID 长度为 36
+                    filename = parts[1]
+
+        record = {
+            'filename': filename,
+            'customer_grade': customer_grade,
+            'intention_level': intention_level,
+            'purchase_stage': purchase_stage,
+            'summary': summary,
+            'analysis_data': analysis_result,
+            'tags': tags,
+            'speaker1_data': speaker1_text,
+            'speaker2_data': speaker2_text
+        }
+
+        database.save_record(record)
+        logger.info(f'分析记录保存成功: {filename}')
+    except Exception as e:
+        logger.error(f'保存分析记录失败: {str(e)}')
+        import traceback
+        logger.error(traceback.format_exc())
 
 
 @app.route('/')
@@ -149,41 +233,10 @@ def process_audio():
         # 步骤3: AI分析
         analyzer = AIAnalyzer()
         analysis_result = analyzer.analyze_conversation(speaker1_text, speaker2_text)
-        
+
         # 保存分析记录到数据库
-        try:
-            # 生成客户标签
-            tags = analyzer.generate_customer_tags(analysis_result)
-            
-            # 提取关键信息
-            summary = analysis_result.get('总结', {}).get('summary', '') if isinstance(analysis_result.get('总结'), dict) else ''
-            customer_grade = analysis_result.get('客户评级', {}).get('grade', '') if isinstance(analysis_result.get('客户评级'), dict) else ''
-            intention_level = analysis_result.get('购房意向', {}).get('intention', '') if isinstance(analysis_result.get('购房意向'), dict) else ''
-            purchase_stage = analysis_result.get('购房阶段', {}).get('stage', '') if isinstance(analysis_result.get('购房阶段'), dict) else ''
-            
-            # 提取原始文件名（去掉 file_id 前缀）
-            original_filename = filename
-            if '_' in filename:
-                parts = filename.split('_', 1)
-                if len(parts) == 2 and len(parts[0]) == 36:  # UUID 长度为 36
-                    original_filename = parts[1]
-            
-            record = {
-                'filename': original_filename,
-                'customer_grade': customer_grade,
-                'intention_level': intention_level,
-                'purchase_stage': purchase_stage,
-                'summary': summary,
-                'analysis_data': analysis_result,
-                'tags': tags,
-                'speaker1_data': speaker1_text,
-                'speaker2_data': speaker2_text
-            }
-            
-            database.save_record(record)
-        except Exception as e:
-            logger.warning(f'保存分析记录失败: {str(e)}')
-        
+        _save_analysis_record(analysis_result, speaker1_text, speaker2_text, filename)
+
         return jsonify({
             'success': True,
             'speaker1': speaker1_text,
@@ -230,32 +283,10 @@ def process_single_file(file_info, batch_id, file_index):
         result['speaker2'] = speaker2_text
         result['analysis'] = analysis_result
         result['status'] = 'completed'
-        
+
         # 保存分析记录到数据库
-        try:
-            tags = analyzer.generate_customer_tags(analysis_result)
-            
-            summary = analysis_result.get('总结', {}).get('summary', '') if isinstance(analysis_result.get('总结'), dict) else ''
-            customer_grade = analysis_result.get('客户评级', {}).get('grade', '') if isinstance(analysis_result.get('客户评级'), dict) else ''
-            intention_level = analysis_result.get('购房意向', {}).get('intention', '') if isinstance(analysis_result.get('购房意向'), dict) else ''
-            purchase_stage = analysis_result.get('购房阶段', {}).get('stage', '') if isinstance(analysis_result.get('购房阶段'), dict) else ''
-            
-            record = {
-                'filename': original_filename,
-                'customer_grade': customer_grade,
-                'intention_level': intention_level,
-                'purchase_stage': purchase_stage,
-                'summary': summary,
-                'analysis_data': analysis_result,
-                'tags': tags,
-                'speaker1_data': speaker1_text,
-                'speaker2_data': speaker2_text
-            }
-            
-            database.save_record(record)
-        except Exception as e:
-            logger.warning(f'保存分析记录失败: {str(e)}')
-        
+        _save_analysis_record(analysis_result, speaker1_text, speaker2_text, original_filename)
+
     except Exception as e:
         result['status'] = 'failed'
         result['error'] = str(e)
@@ -268,6 +299,48 @@ def process_single_file(file_info, batch_id, file_index):
                 batch_processes[batch_id]['status'] = 'completed'
     
     return result
+
+
+def cleanup_old_batches():
+    """清理过期的批处理任务"""
+    while True:
+        try:
+            current_time = datetime.now()
+            expired_batches = []
+            
+            with batch_lock:
+                # 查找过期的任务
+                for batch_id, batch_info in batch_processes.items():
+                    created_at = datetime.fromisoformat(batch_info['created_at'])
+                    age_seconds = (current_time - created_at).total_seconds()
+                    
+                    # 只清理已完成且超过过期时间的任务
+                    if batch_info['status'] == 'completed' and age_seconds > BATCH_EXPIRE_SECONDS:
+                        expired_batches.append(batch_id)
+                
+                # 删除过期任务
+                for batch_id in expired_batches:
+                    del batch_processes[batch_id]
+                    logger.info(f"已清理过期批处理任务: {batch_id}")
+            
+            if expired_batches:
+                logger.info(f"清理了 {len(expired_batches)} 个过期批处理任务")
+                
+        except Exception as e:
+            logger.error(f"清理批处理任务时出错: {str(e)}")
+        
+        # 等待下一次清理
+        time.sleep(CLEANUP_INTERVAL_SECONDS)
+
+
+def start_cleanup_thread():
+    """启动后台清理线程"""
+    cleanup_thread = threading.Thread(
+        target=cleanup_old_batches,
+        daemon=True
+    )
+    cleanup_thread.start()
+    logger.info("批处理任务清理线程已启动")
 
 
 @app.route('/api/batch-process', methods=['POST'])
@@ -424,45 +497,10 @@ def analyze_transcript():
         # AI分析
         analyzer = AIAnalyzer()
         result = analyzer.analyze_conversation(speaker1_text, speaker2_text)
-        
+
         # 保存分析记录到数据库
-        try:
-            from services.ai_analyzer import AIAnalyzer
-            
-            # 生成客户标签
-            analyzer = AIAnalyzer()
-            tags = analyzer.generate_customer_tags(result)
-            
-            # 提取关键信息 - 使用正确的键名
-            summary = result.get('通话概要', {}).get('核心内容', '') if isinstance(result.get('通话概要'), dict) else ''
-            customer_grade = result.get('客户评级', {}).get('综合等级', '') if isinstance(result.get('客户评级'), dict) else ''
-            intention_level = result.get('客户评级', {}).get('购房意向强度', '') if isinstance(result.get('客户评级'), dict) else ''
-            purchase_stage = result.get('购房阶段', {}).get('当前阶段', '') if isinstance(result.get('购房阶段'), dict) else ''
-            
-            # 生成文件名：文本分析_当前时间（精确至毫秒）
-            from datetime import datetime
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]  # 精确到毫秒
-            filename = f'文本分析_{timestamp}'
-            
-            record = {
-                'filename': filename,
-                'customer_grade': customer_grade,
-                'intention_level': intention_level,
-                'purchase_stage': purchase_stage,
-                'summary': summary,
-                'analysis_data': result,
-                'tags': tags,
-                'speaker1_data': speaker1_text,
-                'speaker2_data': speaker2_text
-            }
-            
-            database.save_record(record)
-            logger.info(f'文本分析记录保存成功')
-        except Exception as e:
-            logger.error(f'保存分析记录失败: {str(e)}')
-            import traceback
-            logger.error(traceback.format_exc())
-        
+        _save_analysis_record(result, speaker1_text, speaker2_text)
+
         return jsonify({
             'success': True,
             'speaker1': speaker1_text,
@@ -565,7 +603,7 @@ def export_pdf():
             pdf_buffer,
             mimetype='application/pdf',
             as_attachment=True,
-            download_name=f'购房电话分析报告_{datetime.now().strftime("%Y-%m-%d")}.pdf'
+            download_name=f'骑手租赁分析报告_{datetime.now().strftime("%Y-%m-%d")}.pdf'
         )
         
     except Exception as e:
@@ -934,6 +972,9 @@ def get_concerns_ranking():
     except Exception as e:
         return jsonify({'error': f'获取关注点排行失败: {str(e)}'}), 500
 
+
+# 启动清理线程（在应用启动时执行）
+start_cleanup_thread()
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: rider-analyzer
+    runtime: python
+    plan: free
+    buildCommand: |
+      apt-get update && apt-get install -y libsndfile1 ffmpeg
+      pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MINIMAX_API_KEY
+        sync: false
+      - key: MINIMAX_GROUP_ID
+        sync: false
+      - key: FEISHU_APP_ID
+        sync: false
+      - key: FEISHU_APP_SECRET
+        sync: false
+      - key: MAX_FILE_SIZE
+        value: 50
+      - key: UPLOAD_FOLDER
+        value: /tmp/uploads
+      - key: DATABASE_PATH
+        value: /tmp/data/analysis.db
+    disk:
+      name: data
+      mountPath: /tmp/data
+      sizeGB: 1

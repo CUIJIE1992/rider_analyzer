@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>历史记录 - 购房意向智能分析系统</title>
+    <title>历史记录 - 骑手意向智能分析系统</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
         .history-section {
@@ -439,15 +439,15 @@
         <header class="header">
             <div class="header-content">
                 <div class="logo">
-                    <span class="logo-icon">🏠</span>
+                    <span class="logo-icon">🛵</span>
                     <div class="logo-text">
-                        <h1>购房意向智能分析系统</h1>
-                        <p class="subtitle">AI驱动的房产销售洞察与客户跟进策略</p>
+                        <h1>骑手意向智能分析系统</h1>
+                        <p class="subtitle">AI驱动的电瓶车租赁业务洞察与骑手跟进策略</p>
                     </div>
                 </div>
                 <div class="header-badge">
-                    <span class="badge-item">🎯 客户评级</span>
-                    <span class="badge-item">📊 意向分析</span>
+                    <span class="badge-item">🎯 骑手评级</span>
+                    <span class="badge-item">📊 租赁意向</span>
                     <span class="badge-item">💡 跟进策略</span>
                 </div>
             </div>
@@ -477,12 +477,12 @@
                         <input type="text" id="searchKeyword" placeholder="搜索文件名或标签...">
                     </div>
                     <div class="filter-group">
-                        <label>客户等级</label>
+                        <label>骑手等级</label>
                         <select id="filterRating">
                             <option value="">全部等级</option>
-                            <option value="A">A级客户</option>
-                            <option value="B">B级客户</option>
-                            <option value="C">C级客户</option>
+                            <option value="A">A级骑手</option>
+                            <option value="B">B级骑手</option>
+                            <option value="C">C级骑手</option>
                         </select>
                     </div>
                     <div class="filter-group">
@@ -538,9 +538,9 @@
                             </th>
                             <th>时间</th>
                             <th>文件名</th>
-                            <th>客户等级</th>
+                            <th>骑手等级</th>
                             <th>意向强度</th>
-                            <th>购房阶段</th>
+                            <th>从业阶段</th>
                             <th>标签</th>
                             <th>操作</th>
                         </tr>

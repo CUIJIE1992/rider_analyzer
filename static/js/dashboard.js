@@ -101,14 +101,14 @@ function loadMockData() {
             values: [12, 19, 15, 25, 22, 18, 23]
         },
         concerns_ranking: [
-            { name: '价格优惠', count: 89 },
-            { name: '户型结构', count: 76 },
-            { name: '周边配套', count: 65 },
-            { name: '交通便利', count: 58 },
-            { name: '学区资源', count: 52 },
-            { name: '物业管理', count: 45 },
-            { name: '交房时间', count: 38 },
-            { name: '开发商信誉', count: 32 }
+            { name: '续航能力', count: 89 },
+            { name: '租金价格', count: 76 },
+            { name: '换电便利', count: 65 },
+            { name: '车辆性能', count: 58 },
+            { name: '押金政策', count: 52 },
+            { name: '保险保障', count: 45 },
+            { name: '售后服务', count: 38 },
+            { name: '车型选择', count: 32 }
         ],
         update_time: new Date().toLocaleString('zh-CN')
     };

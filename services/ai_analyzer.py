@@ -38,65 +38,65 @@ class AIAnalyzer:
         
         # 构建提示词
         prompt = f"""
-你是一位专业的房产销售分析师，请分析以下购房咨询通话录音的文本内容，提供专业的购房电话分析报告。
+你是一位专业的电瓶车租赁业务分析师，请分析以下骑手咨询电瓶车租赁的通话录音文本内容，提供专业的租赁意向分析报告。
 
 对话内容：
 {conversation}
 
-请按照以下购房电话分析框架进行详细分析：
+请按照以下电瓶车租赁意向分析框架进行详细分析：
 
 【一、通话概要统计】
 - 通话时长估算（根据对话内容推断）
 - 有效沟通程度（高/中/低）
-- 客户响应积极性（积极/一般/冷淡）
+- 骑手响应积极性（积极/一般/冷淡）
 
 【二、角色识别】
-识别说话人1和说话人2的身份角色（置业顾问/客户）
+识别说话人1和说话人2的身份角色（租赁顾问/骑手）
 
-【三、客户购房意向分析】
-1. 面积需求（具体面积区间）
-2. 价格区间（预算范围）
-3. 区域位置偏好（意向区域）
-4. 户型需求（几室几厅等）
+【三、骑手租赁意向分析】
+1. 租赁车型需求（新国标/大功率/长续航等）
+2. 租赁预算范围（月租/日租可接受价格）
+3. 工作区域偏好（意向配送区域）
+4. 租期需求（短租/长租/灵活租）
 
-【四、客户购房阶段识别】
-判断客户当前处于哪个阶段：
+【四、骑手从业阶段识别】
+判断骑手当前处于哪个阶段：
 - 初步咨询阶段：刚开始了解，需求不明确
 - 需求明确阶段：清楚自己想要什么，在对比选择
-- 决策阶段：已有明确意向，准备购买
+- 决策阶段：已有明确意向，准备签约
 - 犹豫观望阶段：有需求但还在观望
 
-【五、客户核心关注点分析】
-分析客户最关心的购房因素（按重要性排序）：
-- 学区教育资源
-- 交通便利程度
-- 配套设施（商业、医疗等）
-- 开发商信誉
-- 物业服务质量
-- 升值潜力
-- 小区环境
+【五、骑手核心关注点分析】
+分析骑手最关心的租赁因素（按重要性排序）：
+- 车辆续航能力
+- 租金价格
+- 换电便利性
+- 车辆性能（速度/载重）
+- 押金政策
+- 保险保障
+- 售后服务
 - 其他关注点
 
 【六、竞品对比分析】
-识别客户提及的其他楼盘信息：
-- 竞品楼盘名称
-- 客户对比倾向
-- 本项目优劣势分析
+识别骑手提及的其他租赁公司信息：
+- 竞品公司名称
+- 骑手对比倾向
+- 本公司优劣势分析
 
-【七、客户分类评级】
-1. 购房意向强度：高/中/低
-2. 购买力评估：高/中/低
-3. 决策周期预估：短期（1个月内）/中期（1-3个月）/长期（3个月以上）
-4. 综合客户等级：A类（高意向高购买力）/B类（中意向或中购买力）/C类（低意向或低购买力）
+【七、骑手分类评级】
+1. 租赁意向强度：高/中/低
+2. 从业稳定性评估：高/中/低
+3. 决策周期预估：短期（1周内）/中期（1-2周）/长期（2周以上）
+4. 综合客户等级：A类（高意向高稳定性）/B类（中意向或中稳定性）/C类（低意向或低稳定性）
 
 【八、情感与沟通分析】
-1. 客户情感态度（积极/消极/中性）
-2. 置业顾问表现评价
+1. 骑手情感态度（积极/消极/中性）
+2. 租赁顾问表现评价
 3. 沟通效果评估
 
 【九、关键信息提取】
-- 客户联系方式（如有）
-- 看房时间安排
+- 骑手联系方式（如有）
+- 试车/看车安排
 - 特殊需求备注
 
 【十、跟进策略建议】
@@ -110,19 +110,19 @@ class AIAnalyzer:
     "通话概要": {{
         "通话时长估算": "...",
         "有效沟通程度": "高/中/低",
-        "客户响应积极性": "积极/一般/冷淡"
+        "骑手响应积极性": "积极/一般/冷淡"
     }},
     "角色识别": {{
-        "说话人1": "置业顾问",
-        "说话人2": "客户"
+        "说话人1": "租赁顾问",
+        "说话人2": "骑手"
     }},
-    "购房意向": {{
-        "面积需求": "...",
-        "价格区间": "...",
+    "租赁意向": {{
+        "车型需求": "...",
+        "预算范围": "...",
         "区域偏好": "...",
-        "户型需求": "..."
+        "租期需求": "..."
     }},
-    "购房阶段": {{
+    "从业阶段": {{
         "当前阶段": "初步咨询/需求明确/决策阶段/犹豫观望",
         "阶段特征": "..."
     }},
@@ -134,25 +134,25 @@ class AIAnalyzer:
     }},
     "竞品分析": {{
         "提及竞品": ["...", "..."],
-        "对比倾向": "倾向本项目/倾向竞品/中立对比",
-        "本项目优势": ["...", "..."],
-        "本项目劣势": ["...", "..."]
+        "对比倾向": "倾向本公司/倾向竞品/中立对比",
+        "本公司优势": ["...", "..."],
+        "本公司劣势": ["...", "..."]
     }},
     "客户评级": {{
-        "购房意向强度": "高/中/低",
-        "购买力评估": "高/中/低",
+        "租赁意向强度": "高/中/低",
+        "从业稳定性": "高/中/低",
         "决策周期": "短期/中期/长期",
         "综合等级": "A类/B类/C类",
         "等级说明": "..."
     }},
     "情感分析": {{
-        "客户态度": "积极/消极/中性",
-        "置业顾问表现": "...",
+        "骑手态度": "积极/消极/中性",
+        "租赁顾问表现": "...",
         "沟通效果": "..."
     }},
     "关键信息": {{
         "联系方式": "...",
-        "看房安排": "...",
+        "试车安排": "...",
         "特殊需求": "..."
     }},
     "跟进建议": {{
@@ -162,8 +162,7 @@ class AIAnalyzer:
         "下一步计划": "..."
     }},
     "总结": "本次通话的核心结论和跟进要点"
-}}
-"""
+}}"""
         
         try:
             # 调用MiniMax API
@@ -175,8 +174,8 @@ class AIAnalyzer:
                 'error': f'分析失败: {str(e)}',
                 '通话概要': {},
                 '角色识别': {},
-                '购房意向': {},
-                '购房阶段': {},
+                '租赁意向': {},
+                '从业阶段': {},
                 '核心关注点': {},
                 '竞品分析': {},
                 '客户评级': {},
@@ -190,26 +189,31 @@ class AIAnalyzer:
         """调用MiniMax API"""
         url = f"{self.base_url}/chat/completions"
         
+        # 确保使用正确的API密钥
+        api_key = os.getenv('MINIMAX_API_KEY') or self.api_key
+        
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         
+        logger.debug(f"使用API密钥: {api_key[:20]}..." if api_key else "API密钥为空")
+        
         data = {
-            "model": "MiniMax-Text-01",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "你是一位专业的房产销售分析师，擅长分析购房咨询通话录音，能够准确识别客户需求、购房意向和跟进机会。请严格按照JSON格式返回结果。"
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.7,
-            "max_tokens": 2000
-        }
+                "model": "MiniMax-Text-01",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "你是一位专业的电瓶车租赁业务分析师，擅长分析骑手咨询电瓶车租赁的通话录音，能够准确识别骑手需求、租赁意向和跟进机会。请严格按照JSON格式返回结果。"
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": 0.7,
+                "max_tokens": 2000
+            }
         
         logger.debug(f"请求URL: {url}")
         logger.debug(f"请求参数: model={data['model']}, temperature={data['temperature']}, max_tokens={data['max_tokens']}")
@@ -219,6 +223,12 @@ class AIAnalyzer:
             response = requests.post(url, headers=headers, json=data, timeout=60)
             logger.debug(f"响应状态码: {response.status_code}")
             logger.debug(f"响应内容: {response.text[:1000] if len(response.text) > 1000 else response.text}")
+            
+            if response.status_code != 200:
+                logger.error(f"API请求失败: {response.status_code} - {response.text}")
+                logger.error(f"请求URL: {url}")
+                logger.error(f"请求Headers: Authorization=Bearer {api_key[:10]}...")
+                raise Exception(f"API请求失败: {response.status_code} - {response.text}")
             
             result = response.json()
             
@@ -373,20 +383,20 @@ class AIAnalyzer:
             return tags
         
         rating = analysis.get('客户评级', {})
-        stage = analysis.get('购房阶段', {})
+        stage = analysis.get('从业阶段', {})
         concerns = analysis.get('核心关注点', {})
         
-        intention = rating.get('购房意向强度', '')
+        intention = rating.get('租赁意向强度', '')
         if intention == '高':
-            tags.append('高意向客户')
+            tags.append('高意向骑手')
         elif intention == '中':
-            tags.append('中意向客户')
+            tags.append('中意向骑手')
         elif intention == '低':
-            tags.append('低意向客户')
+            tags.append('低意向骑手')
         
         grade = rating.get('综合等级', '')
         if grade == 'A类':
-            tags.append('A类优质客户')
+            tags.append('A类优质骑手')
         
         first_concern = concerns.get('第一关注', {})
         second_concern = concerns.get('第二关注', {})
@@ -403,17 +413,19 @@ class AIAnalyzer:
         all_concerns.extend(other_concerns)
         
         all_concerns_text = ' '.join(all_concerns)
-        if '学区' in all_concerns_text or '教育' in all_concerns_text:
-            tags.append('学区关注')
-        if '交通' in all_concerns_text:
-            tags.append('交通关注')
+        if '续航' in all_concerns_text or '电池' in all_concerns_text:
+            tags.append('续航关注')
+        if '换电' in all_concerns_text:
+            tags.append('换电关注')
+        if '押金' in all_concerns_text:
+            tags.append('押金敏感')
+        if '价格' in all_concerns_text or '租金' in all_concerns_text:
+            tags.append('价格敏感')
         
         current_stage = stage.get('当前阶段', '')
-        if '改善' in current_stage:
-            tags.append('改善型需求')
-        elif '刚需' in current_stage or '首次' in current_stage:
-            tags.append('刚需客户')
-        elif '决策' in current_stage:
-            tags.append('决策期客户')
+        if '决策' in current_stage:
+            tags.append('决策期骑手')
+        elif '咨询' in current_stage:
+            tags.append('咨询期骑手')
         
         return tags
