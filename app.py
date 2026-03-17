@@ -225,14 +225,18 @@ def process_audio():
         processor = AudioProcessor(filepath)
         separated_audio = processor.separate_speakers()
         
+        # 获取音频真实时长
+        audio_info = processor.get_audio_info()
+        audio_duration = audio_info.get('duration', 0)
+        
         # 步骤2: 语音转文本
         transcriber = SpeechToText()
         speaker1_text = transcriber.transcribe(separated_audio['speaker1'])
         speaker2_text = transcriber.transcribe(separated_audio['speaker2'])
         
-        # 步骤3: AI分析
+        # 步骤3: AI分析（传入真实时长）
         analyzer = AIAnalyzer()
-        analysis_result = analyzer.analyze_conversation(speaker1_text, speaker2_text)
+        analysis_result = analyzer.analyze_conversation(speaker1_text, speaker2_text, audio_duration=audio_duration)
 
         # 保存分析记录到数据库
         _save_analysis_record(analysis_result, speaker1_text, speaker2_text, filename)

@@ -22,19 +22,29 @@ class AIAnalyzer:
         self.group_id = os.getenv('MINIMAX_GROUP_ID', '')
         self.base_url = "https://api.minimax.chat/v1"
         
-    def analyze_conversation(self, speaker1_text, speaker2_text):
+    def analyze_conversation(self, speaker1_text, speaker2_text, audio_duration=None):
         """
         分析对话内容
         
         Args:
             speaker1_text: 说话人1的文本
             speaker2_text: 说话人2的文本
+            audio_duration: 音频实际时长（秒），如果提供则使用实际时长
             
         Returns:
             dict: 分析结果
         """
         # 准备对话内容
         conversation = self._format_conversation(speaker1_text, speaker2_text)
+        
+        # 格式化时长显示
+        if audio_duration and audio_duration > 0:
+            minutes = int(audio_duration // 60)
+            seconds = int(audio_duration % 60)
+            duration_str = f"{minutes}分{seconds}秒" if minutes > 0 else f"{seconds}秒"
+            duration_note = f"（实际通话时长：{duration_str}）"
+        else:
+            duration_note = "（请根据对话内容估算时长）"
         
         # 构建提示词
         prompt = f"""
@@ -46,7 +56,7 @@ class AIAnalyzer:
 请按照以下电动车租赁意向分析框架进行详细分析：
 
 【一、通话概要统计】
-- 通话时长估算（根据对话内容推断）
+- 通话时长：{duration_note}
 - 有效沟通程度（高/中/低）
 - 骑手响应积极性（积极/一般/冷淡）
 

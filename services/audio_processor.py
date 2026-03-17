@@ -7,6 +7,7 @@
 
 import os
 import logging
+from pydub import AudioSegment
 
 logger = logging.getLogger(__name__)
 
@@ -189,17 +190,37 @@ class AudioProcessor:
         获取音频信息
         
         Returns:
-            dict: 音频信息
+            dict: 音频信息，包含真实时长（秒）
         """
         file_size = os.path.getsize(self.filepath)
         
-        return {
-            'duration': 120,
-            'channels': 2,
-            'sample_rate': 44100,
-            'sample_width': 16,
-            'file_size': file_size
-        }
+        try:
+            # 使用pydub获取真实音频时长
+            audio = AudioSegment.from_mp3(self.filepath)
+            duration = len(audio) / 1000  # 转换为秒
+            channels = audio.channels
+            sample_rate = audio.frame_rate
+            sample_width = audio.sample_width * 8  # 转换为位
+            
+            logger.info(f"音频信息: 时长={duration:.2f}秒, 声道={channels}, 采样率={sample_rate}")
+            
+            return {
+                'duration': duration,
+                'channels': channels,
+                'sample_rate': sample_rate,
+                'sample_width': sample_width,
+                'file_size': file_size
+            }
+        except Exception as e:
+            logger.error(f"获取音频信息失败: {e}")
+            # 降级处理：返回默认值
+            return {
+                'duration': 0,
+                'channels': 2,
+                'sample_rate': 44100,
+                'sample_width': 16,
+                'file_size': file_size
+            }
     
     @classmethod
     def is_pyannote_available(cls):
