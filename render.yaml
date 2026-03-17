@@ -5,8 +5,10 @@ services:
     plan: free
     buildCommand: |
       apt-get update && apt-get install -y libsndfile1 ffmpeg
-      pip install --upgrade pip
-      pip install -r requirements.txt --timeout 120 --retries 3 || pip install -r requirements.txt --timeout 120 --retries 3
+      pip install --upgrade pip --timeout 120
+      pip config set global.timeout 120
+      pip config set global.retries 5
+      pip install -r requirements.txt || sleep 5 && pip install -r requirements.txt || sleep 10 && pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     envVars:
       - key: PYTHON_VERSION
